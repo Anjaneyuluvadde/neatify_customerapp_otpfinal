@@ -2597,7 +2597,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import * as Notifications from "expo-notifications";
-import RNRestart from "react-native-restart";
+// import RNRestart from "react-native-restart";
 import { BookingCartProvider } from "./src/context/BookingCartContext";
 import { LanguageProvider } from "./src/context/LanguageContext";
 import { NotificationProvider } from "./src/context/NotificationContext";
@@ -2879,17 +2879,17 @@ export default function App() {
           // This prevents another restart loop.
           // ----------------------------------------------------
 
-          const googleRestartFlag = await AsyncStorage.getItem(
-            "google_auth_restarted",
-          );
+          // const googleRestartFlag = await AsyncStorage.getItem(
+          //   "google_auth_restarted",
+          // );
 
-          if (googleRestartFlag === "true") {
-            console.log("[Google Auth] Restart recovery detected");
+          // if (googleRestartFlag === "true") {
+          //   console.log("[Google Auth] Restart recovery detected");
 
-            console.log("[Google Auth] Clearing restart flag");
+          //   console.log("[Google Auth] Clearing restart flag");
 
-            await AsyncStorage.removeItem("google_auth_restarted");
-          }
+          //   await AsyncStorage.removeItem("google_auth_restarted");
+          // }
 
           handlePushToken(session.user.id);
 
@@ -3081,52 +3081,52 @@ export default function App() {
         // Check restart flag
         // ------------------------------------------------------
 
-        const hasRestarted = await AsyncStorage.getItem(
-          "google_auth_restarted",
-        );
+        // const hasRestarted = await AsyncStorage.getItem(
+        //   "google_auth_restarted",
+        // );
 
         // ======================================================
         // SECOND START / RECOVERY
         // ======================================================
 
-        if (hasRestarted === "true") {
-          console.log("[Google Auth] Restart recovery flow detected");
+        // if (hasRestarted === "true") {
+        //   console.log("[Google Auth] Restart recovery flow detected");
 
-          // Clear flag so future Google logins work normally.
-          await AsyncStorage.removeItem("google_auth_restarted");
+        //   // Clear flag so future Google logins work normally.
+        //   await AsyncStorage.removeItem("google_auth_restarted");
 
-          try {
-            console.log("[Google Auth] Restoring Supabase session");
+        //   try {
+        //     console.log("[Google Auth] Restoring Supabase session");
 
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
+        //     const { data, error } = await supabase.auth.setSession({
+        //       access_token: accessToken,
+        //       refresh_token: refreshToken,
+        //     });
 
-            if (error) {
-              console.error(
-                "[Google Auth] Session restore error:",
-                error.message,
-              );
+        //     if (error) {
+        //       console.error(
+        //         "[Google Auth] Session restore error:",
+        //         error.message,
+        //       );
 
-              googleAuthInProgress.current = false;
+        //       googleAuthInProgress.current = false;
 
-              return;
-            }
+        //       return;
+        //     }
 
-            if (data?.session?.user) {
-              console.log("[Google Auth] Session restored successfully");
+        //     if (data?.session?.user) {
+        //       console.log("[Google Auth] Session restored successfully");
 
-              console.log("[Google Auth] User ID:", data.session.user.id);
-            }
-          } catch (err) {
-            console.error("[Google Auth] Session restore exception:", err);
-          } finally {
-            googleAuthInProgress.current = false;
-          }
+        //       console.log("[Google Auth] User ID:", data.session.user.id);
+        //     }
+        //   } catch (err) {
+        //     console.error("[Google Auth] Session restore exception:", err);
+        //   } finally {
+        //     googleAuthInProgress.current = false;
+        //   }
 
-          return;
-        }
+        //   return;
+        // }
 
         // ======================================================
         // FIRST GOOGLE LOGIN
@@ -3144,29 +3144,29 @@ export default function App() {
         // restart the app.
         // ------------------------------------------------------
 
-        await AsyncStorage.setItem("google_auth_restarted", "true");
+        // await AsyncStorage.setItem("google_auth_restarted", "true");
 
-        console.log("[Google Auth] Restart flag saved");
+        // console.log("[Google Auth] Restart flag saved");
 
         // ------------------------------------------------------
         // START WATCHDOG BEFORE setSession()
         // ------------------------------------------------------
 
-        console.log("[Google Auth] Starting 3-second restart watchdog");
+        // console.log("[Google Auth] Starting 3-second restart watchdog");
 
-        const restartTimer = setTimeout(() => {
-          try {
-            console.log(
-              "[Google Auth] Authentication/profile flow appears stuck",
-            );
+        // const restartTimer = setTimeout(() => {
+        //   try {
+        //     console.log(
+        //       "[Google Auth] Authentication/profile flow appears stuck",
+        //     );
 
-            console.log("[Google Auth] Automatically restarting app...");
+        //     console.log("[Google Auth] Automatically restarting app...");
 
-            RNRestart.restart();
-          } catch (err) {
-            console.error("[Google Auth] Failed to restart app:", err);
-          }
-        }, 3000);
+        //     RNRestart.restart();
+        //   } catch (err) {
+        //     console.error("[Google Auth] Failed to restart app:", err);
+        //   }
+        // }, 3000);
 
         // ------------------------------------------------------
         // CREATE SUPABASE SESSION
@@ -3191,7 +3191,7 @@ export default function App() {
           // googleAuthInProgress.current is true.
           // ----------------------------------------------------
 
-          clearTimeout(restartTimer);
+          // clearTimeout(restartTimer);
 
           if (error) {
             console.error("[Google Auth] setSession error:", error.message);
@@ -3267,7 +3267,7 @@ export default function App() {
           }
 
         } catch (err) {
-          clearTimeout(restartTimer);
+          // clearTimeout(restartTimer);
           console.error("[Google Auth] setSession exception:", err);
           googleAuthInProgress.current = false;
           setShowGoogleLoadingPopup(false);
