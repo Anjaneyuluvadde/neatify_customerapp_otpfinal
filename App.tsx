@@ -2585,14 +2585,14 @@ import {
   NavigationContainer,
 } from "@react-navigation/native";
 import * as Linking from "expo-linking";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Modal,
   StatusBar,
   StyleSheet,
-  Modal,
-  View,
   Text,
-  Animated,
+  View,
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -2964,6 +2964,7 @@ export default function App() {
 
           handlePushToken(userId);
 
+
           // ----------------------------------------------------
           // IMPORTANT GOOGLE FIX
           // ----------------------------------------------------
@@ -3207,34 +3208,69 @@ export default function App() {
 
             console.log("[Google Auth] User ID:", data.session.user.id);
 
-            // --------------------------------------------------
-            // IMPORTANT:
-            //
-            // We intentionally DO NOT call checkCompleteness()
-            // here.
-            //
-            // The reason is the first-login profile request is
-            // the operation that is hanging in your ADB log.
-            //
-            // If this flow hangs, the watchdog above restarts
-            // the application.
-            // --------------------------------------------------
+            // ==========================================
+            // CREATE PROFILE ROW
+            // ==========================================
 
-            console.log("[Google Auth] Waiting for normal app recovery");
+            const user = data.session.user;
 
-            // Give the auth event a little time to finish.
-            setTimeout(() => {
-              googleAuthInProgress.current = false;
-            }, 1000);
+            const fullName =
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "Customer";
+
+            const { error: profileError } = await supabase
+              .from("profile")
+              .upsert({
+                id: user.id,
+                email: user.email,
+                full_name: fullName,
+                phone: null,
+                address: null,
+                pincode: null,
+              });
+
+            if (profileError) {
+              console.error(
+                "[Google Auth] Profile creation error:",
+                profileError.message
+              );
+            } else {
+              console.log("[Google Auth] Profile row created");
+            }
+
+            // 1. CLEAR THE LOADING MODAL
+            setShowGoogleLoadingPopup(false);
+
+            // 2. MANUALLY RUN PROFILE CHECK AND NAVIGATE
+            console.log("[Google Auth] Checking completeness & navigating...");
+            const isComplete = await checkCompleteness(user.id, true);
+
+            if (isComplete) {
+              navigationRef.current?.reset({
+                index: 0,
+                routes: [
+                  {
+                    name: "HomeDrawer",
+                  },
+                ],
+              });
+            }
+
+            // 3. CLEAN UP FLAG IMMEDIATELY
+            googleAuthInProgress.current = false;
+
           } else {
             googleAuthInProgress.current = false;
+            setShowGoogleLoadingPopup(false);
           }
+
         } catch (err) {
           clearTimeout(restartTimer);
-
           console.error("[Google Auth] setSession exception:", err);
-
           googleAuthInProgress.current = false;
+          setShowGoogleLoadingPopup(false);
         }
 
         return;

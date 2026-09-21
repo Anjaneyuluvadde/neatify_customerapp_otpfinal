@@ -1579,8 +1579,8 @@ export default function LoginScreen(props: any) {
 
         await checkProfileAndNavigate(
           data.user.id,
-          fullName.trim(),
           cleanEmail,
+          fullName.trim(),
           true
         );
       } else {
