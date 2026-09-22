@@ -670,8 +670,8 @@
 
 //     return () => interactionPromise.cancel();
 //   }, [fetchServices, fetchHeroBanners, fetchPromotionalBanners, fetchPopups, fetchMainCategories, checkWelcomeReward, checkSignupOfferReward]);
-  
-  
+
+
 //   // 👇👇👇 ADD THE FOCUS BLOCK HERE 👇👇👇
 //   useFocusEffect(
 //     useCallback(() => {
@@ -686,9 +686,9 @@
 //       return () => clearInterval(interval);
 //     }, [fetchPromotionalBanners])
 //   );
-  
-  
-  
+
+
+
 //   // ⬇️⬇️⬇️ ADD THE REALTIME USEEFFECT HERE ⬇️⬇️⬇️
 //   useEffect(() => {
 //     let subscription: any = null;
@@ -2698,8 +2698,8 @@
 
 //     return () => interactionPromise.cancel();
 //   }, [fetchServices, fetchHeroBanners, fetchPromotionalBanners, fetchPopups, fetchMainCategories, checkWelcomeReward, checkSignupOfferReward]);
-  
-  
+
+
 //   // 👇👇👇 ADD THE FOCUS BLOCK HERE 👇👇👇
 //   useFocusEffect(
 //     useCallback(() => {
@@ -2714,9 +2714,9 @@
 //       return () => clearInterval(interval);
 //     }, [fetchPromotionalBanners])
 //   );
-  
-  
-  
+
+
+
 //   // ⬇️⬇️⬇️ ADD THE REALTIME USEEFFECT HERE ⬇️⬇️⬇️
 //   useEffect(() => {
 //     let subscription: any = null;
@@ -4750,8 +4750,8 @@
 
 //     return () => interactionPromise.cancel();
 //   }, [fetchServices, fetchHeroBanners, fetchPromotionalBanners, fetchPopups, fetchMainCategories, checkWelcomeReward, checkSignupOfferReward]);
-  
-  
+
+
 //   // 👇👇👇 ADD THE FOCUS BLOCK HERE 👇👇👇
 //   useFocusEffect(
 //     useCallback(() => {
@@ -4766,9 +4766,9 @@
 //       return () => clearInterval(interval);
 //     }, [fetchPromotionalBanners])
 //   );
-  
-  
-  
+
+
+
 //   // ⬇️⬇️⬇️ ADD THE REALTIME USEEFFECT HERE ⬇️⬇️⬇️
 //   useEffect(() => {
 //     let subscription: any = null;
@@ -6214,30 +6214,30 @@ export default function HomeScreen({ navigation }: any) {
       if (session?.user) {
         // Check for specific banner reuse
         // Check for specific banner reuse:
-// Blocked if any PAID booking exists with this banner that is NOT cancelled/failed.
-const { data: existingRows, error: existingErr } = await supabase
-  .from("bookings")
-  .select("id, work_status, payment_status, payment_verified")
-  .eq("user_id", session.user.id)
-  .eq("promotional_banner_id", banner.id);
+        // Blocked if any PAID booking exists with this banner that is NOT cancelled/failed.
+        const { data: existingRows, error: existingErr } = await supabase
+          .from("bookings")
+          .select("id, work_status, payment_status, payment_verified")
+          .eq("user_id", session.user.id)
+          .eq("promotional_banner_id", banner.id);
 
-if (existingErr) {
-  console.error("[PROMO] reuse check error:", existingErr);
-}
+        if (existingErr) {
+          console.error("[PROMO] reuse check error:", existingErr);
+        }
 
-const isAlreadyUsed = (existingRows || []).some((row: any) => {
-  const ps = String(row.payment_status || "").trim().toLowerCase();
-  const ws = String(row.work_status || "").trim().toUpperCase();
-  const paid = row.payment_verified === true && ps === "paid";
-  const isCancelled = ws === "CANCELLED";
-  const isFailed = ws === "PAYMENT FAILED";
-  return paid && !isCancelled && !isFailed;
-});
+        const isAlreadyUsed = (existingRows || []).some((row: any) => {
+          const ps = String(row.payment_status || "").trim().toLowerCase();
+          const ws = String(row.work_status || "").trim().toUpperCase();
+          const paid = row.payment_verified === true && ps === "paid";
+          const isCancelled = ws === "CANCELLED";
+          const isFailed = ws === "PAYMENT FAILED";
+          return paid && !isCancelled && !isFailed;
+        });
 
-if (isAlreadyUsed) {
-  showToast("This offer has already been used.", "info");
-  return;
-}
+        if (isAlreadyUsed) {
+          showToast("This offer has already been used.", "info");
+          return;
+        }
 
         // Check for NEW_USER eligibility if banner is for new users
         // if (banner.customer_type === "new") {
@@ -6261,70 +6261,70 @@ if (isAlreadyUsed) {
 
 
         // Check NEW_USER campaign eligibility
-if (banner.customer_type === "new") {
-  const userCreatedAt = new Date(session.user.created_at);
+        if (banner.customer_type === "new") {
+          const userCreatedAt = new Date(session.user.created_at);
 
-  const offerStart = banner.start_date
-    ? new Date(banner.start_date)
-    : null;
+          const offerStart = banner.start_date
+            ? new Date(banner.start_date)
+            : null;
 
-  const offerEnd = banner.end_date
-    ? new Date(banner.end_date)
-    : null;
+          const offerEnd = banner.end_date
+            ? new Date(banner.end_date)
+            : null;
 
-  const signupWithinCampaign =
-    offerStart &&
-    offerEnd &&
-    !Number.isNaN(userCreatedAt.getTime()) &&
-    !Number.isNaN(offerStart.getTime()) &&
-    !Number.isNaN(offerEnd.getTime()) &&
-    userCreatedAt >= offerStart &&
-    userCreatedAt <= offerEnd;
+          const signupWithinCampaign =
+            offerStart &&
+            offerEnd &&
+            !Number.isNaN(userCreatedAt.getTime()) &&
+            !Number.isNaN(offerStart.getTime()) &&
+            !Number.isNaN(offerEnd.getTime()) &&
+            userCreatedAt >= offerStart &&
+            userCreatedAt <= offerEnd;
 
-  console.log(
-    `[PROMO] NEW USER campaign check | ` +
-    `signup:${userCreatedAt.toISOString()} | ` +
-    `start:${offerStart?.toISOString()} | ` +
-    `end:${offerEnd?.toISOString()} | ` +
-    `eligible:${signupWithinCampaign}`
-  );
+          console.log(
+            `[PROMO] NEW USER campaign check | ` +
+            `signup:${userCreatedAt.toISOString()} | ` +
+            `start:${offerStart?.toISOString()} | ` +
+            `end:${offerEnd?.toISOString()} | ` +
+            `eligible:${signupWithinCampaign}`
+          );
 
-  // User did not register during this campaign
-  if (!signupWithinCampaign) {
-    showToast(
-      "This offer is only available to users who joined during the offer period.",
-      "info"
-    );
+          // User did not register during this campaign
+          if (!signupWithinCampaign) {
+            showToast(
+              "This offer is only available to users who joined during the offer period.",
+              "info"
+            );
 
-    const existing = await getClaimedOffer();
+            const existing = await getClaimedOffer();
 
-    if (existing && existing.type === "NEW_USER") {
-      await clearClaimedOffer();
-    }
+            if (existing && existing.type === "NEW_USER") {
+              await clearClaimedOffer();
+            }
 
-    return;
-  }
+            return;
+          }
 
-  // // User must also have NO previous paid booking
-  // const { count: totalPaidCount } = await supabase
-  //   .from("bookings")
-  //   .select("id", { count: "exact", head: true })
-  //   .eq("user_id", session.user.id)
-  //   .eq("payment_verified", true)
-  //   .ilike("payment_status", "paid");
+          // // User must also have NO previous paid booking
+          // const { count: totalPaidCount } = await supabase
+          //   .from("bookings")
+          //   .select("id", { count: "exact", head: true })
+          //   .eq("user_id", session.user.id)
+          //   .eq("payment_verified", true)
+          //   .ilike("payment_status", "paid");
 
-  // if (totalPaidCount && totalPaidCount > 0) {
-  //   showToast("This offer is for new users only.", "info");
+          // if (totalPaidCount && totalPaidCount > 0) {
+          //   showToast("This offer is for new users only.", "info");
 
-  //   const existing = await getClaimedOffer();
+          //   const existing = await getClaimedOffer();
 
-  //   if (existing && existing.type === "NEW_USER") {
-  //     await clearClaimedOffer();
-  //   }
+          //   if (existing && existing.type === "NEW_USER") {
+          //     await clearClaimedOffer();
+          //   }
 
-  //   return;
-  // }
-}
+          //   return;
+          // }
+        }
       }
 
       const existingClaim = await getClaimedOffer();
@@ -6426,85 +6426,85 @@ if (banner.customer_type === "new") {
       // }
 
 
-    if (session?.user) {
-      // Same reuse rule as handleBannerPress
-      const { data: existingRows, error: existingErr } = await supabase
-        .from("bookings")
-        .select("id, work_status, payment_status, payment_verified")
-        .eq("user_id", session.user.id)
-        .eq("promotional_banner_id", activePromoBanner.id);
+      if (session?.user) {
+        // Same reuse rule as handleBannerPress
+        const { data: existingRows, error: existingErr } = await supabase
+          .from("bookings")
+          .select("id, work_status, payment_status, payment_verified")
+          .eq("user_id", session.user.id)
+          .eq("promotional_banner_id", activePromoBanner.id);
 
-      if (existingErr) {
-        console.error("[PROMO] reuse check error:", existingErr);
-      }
+        if (existingErr) {
+          console.error("[PROMO] reuse check error:", existingErr);
+        }
 
-      const isAlreadyUsed = (existingRows || []).some((row: any) => {
-        const ps = String(row.payment_status || "").trim().toLowerCase();
-        const ws = String(row.work_status || "").trim().toUpperCase();
-        const paid = row.payment_verified === true && ps === "paid";
-        const isCancelled = ws === "CANCELLED";
-        const isFailed = ws === "PAYMENT FAILED";
-        return paid && !isCancelled && !isFailed;
-      });
+        const isAlreadyUsed = (existingRows || []).some((row: any) => {
+          const ps = String(row.payment_status || "").trim().toLowerCase();
+          const ws = String(row.work_status || "").trim().toUpperCase();
+          const paid = row.payment_verified === true && ps === "paid";
+          const isCancelled = ws === "CANCELLED";
+          const isFailed = ws === "PAYMENT FAILED";
+          return paid && !isCancelled && !isFailed;
+        });
 
-      if (isAlreadyUsed) {
-        showToast("This offer has already been used.", "info");
-        setShowServiceSelectModal(false);
-        return;
-      }
-
-      // NEW_USER campaign check (unchanged)
-      if (activePromoBanner.customer_type === "new") {
-        const userCreatedAt = new Date(session.user.created_at);
-
-        const offerStart = activePromoBanner.start_date
-          ? new Date(activePromoBanner.start_date)
-          : null;
-
-        const offerEnd = activePromoBanner.end_date
-          ? new Date(activePromoBanner.end_date)
-          : null;
-
-        const signupWithinCampaign =
-          offerStart &&
-          offerEnd &&
-          !Number.isNaN(userCreatedAt.getTime()) &&
-          !Number.isNaN(offerStart.getTime()) &&
-          !Number.isNaN(offerEnd.getTime()) &&
-          userCreatedAt >= offerStart &&
-          userCreatedAt <= offerEnd;
-
-        console.log(
-          `[PROMO] Selected service NEW USER check | ` +
-          `signup:${userCreatedAt.toISOString()} | ` +
-          `start:${offerStart?.toISOString()} | ` +
-          `end:${offerEnd?.toISOString()} | ` +
-          `eligible:${signupWithinCampaign}`
-        );
-
-        if (!signupWithinCampaign) {
-          showToast(
-            "This offer is only available to users who joined during the offer period.",
-            "info"
-          );
+        if (isAlreadyUsed) {
+          showToast("This offer has already been used.", "info");
           setShowServiceSelectModal(false);
           return;
         }
 
-        // const { count: totalPaidCount } = await supabase
-        //   .from("bookings")
-        //   .select("id", { count: "exact", head: true })
-        //   .eq("user_id", session.user.id)
-        //   .eq("payment_verified", true)
-        //   .ilike("payment_status", "paid");
+        // NEW_USER campaign check (unchanged)
+        if (activePromoBanner.customer_type === "new") {
+          const userCreatedAt = new Date(session.user.created_at);
 
-        // if (totalPaidCount && totalPaidCount > 0) {
-        //   showToast("This offer is for new users only.", "info");
-        //   setShowServiceSelectModal(false);
-        //   return;
-        // }
+          const offerStart = activePromoBanner.start_date
+            ? new Date(activePromoBanner.start_date)
+            : null;
+
+          const offerEnd = activePromoBanner.end_date
+            ? new Date(activePromoBanner.end_date)
+            : null;
+
+          const signupWithinCampaign =
+            offerStart &&
+            offerEnd &&
+            !Number.isNaN(userCreatedAt.getTime()) &&
+            !Number.isNaN(offerStart.getTime()) &&
+            !Number.isNaN(offerEnd.getTime()) &&
+            userCreatedAt >= offerStart &&
+            userCreatedAt <= offerEnd;
+
+          console.log(
+            `[PROMO] Selected service NEW USER check | ` +
+            `signup:${userCreatedAt.toISOString()} | ` +
+            `start:${offerStart?.toISOString()} | ` +
+            `end:${offerEnd?.toISOString()} | ` +
+            `eligible:${signupWithinCampaign}`
+          );
+
+          if (!signupWithinCampaign) {
+            showToast(
+              "This offer is only available to users who joined during the offer period.",
+              "info"
+            );
+            setShowServiceSelectModal(false);
+            return;
+          }
+
+          // const { count: totalPaidCount } = await supabase
+          //   .from("bookings")
+          //   .select("id", { count: "exact", head: true })
+          //   .eq("user_id", session.user.id)
+          //   .eq("payment_verified", true)
+          //   .ilike("payment_status", "paid");
+
+          // if (totalPaidCount && totalPaidCount > 0) {
+          //   showToast("This offer is for new users only.", "info");
+          //   setShowServiceSelectModal(false);
+          //   return;
+          // }
+        }
       }
-    }
       console.log("[PROMO] Claiming selected service offer:", selectedSvc.title);
       const claimType = activePromoBanner.customer_type === "new" ? "NEW_USER" : "PROMOTIONAL_BANNER";
       console.log("[COUPON STEP 8] Banner customer_type:", activePromoBanner.customer_type);
@@ -6565,208 +6565,209 @@ if (banner.customer_type === "new") {
 
   // ✅ Fetch promotional banners with eligibility checks
 
-const fetchPromotionalBanners = useCallback(async () => {
-  const { data, error } = await supabase
-    .from("promotional_banners")
-    .select("*")
-    .eq("is_active", true)
-    .order("display_order", { ascending: true });
+  const fetchPromotionalBanners = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("promotional_banners")
+      .select("*")
+      .eq("is_active", true)
+      .eq("banner_type", "customer_app")
+      .order("display_order", { ascending: true });
 
-  if (error) {
-    console.log("Promotional Banners error:", error);
-    return;
-  }
+    if (error) {
+      console.log("Promotional Banners error:", error);
+      return;
+    }
 
-  if (data) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
+    if (data) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
 
-            // ✅ Fetch banner IDs the user has already CONSUMED.
-      // A banner is consumed only when a booking that used it reaches COMPLETED.
-      const consumedBannerIds = new Set<string>();
-      if (userId) {
-        const { data: usedRows, error: usedError } = await supabase
-          .from("bookings")
-          .select("promotional_banner_id, work_status")
-          .eq("user_id", userId)
-          .not("promotional_banner_id", "is", null);
+        // ✅ Fetch banner IDs the user has already CONSUMED.
+        // A banner is consumed only when a booking that used it reaches COMPLETED.
+        const consumedBannerIds = new Set<string>();
+        if (userId) {
+          const { data: usedRows, error: usedError } = await supabase
+            .from("bookings")
+            .select("promotional_banner_id, work_status")
+            .eq("user_id", userId)
+            .not("promotional_banner_id", "is", null);
 
-        console.log("[Banner] raw used rows:", usedRows, "err:", usedError);
+          console.log("[Banner] raw used rows:", usedRows, "err:", usedError);
 
-        if (!usedError && usedRows) {
-          usedRows.forEach((row: any) => {
-            const ws = String(row.work_status || "").trim().toUpperCase();
-            if (ws === "COMPLETED" && row.promotional_banner_id) {
-              consumedBannerIds.add(row.promotional_banner_id);
+          if (!usedError && usedRows) {
+            usedRows.forEach((row: any) => {
+              const ws = String(row.work_status || "").trim().toUpperCase();
+              if (ws === "COMPLETED" && row.promotional_banner_id) {
+                consumedBannerIds.add(row.promotional_banner_id);
+              }
+            });
+          }
+        }
+
+        console.log("[Banner] consumedBannerIds:", Array.from(consumedBannerIds));
+
+        let customerPincode: string | null = null;
+        let customerHubIds: string[] = [];
+
+        try {
+          const locResult = await LocationService.getSelectedLocation();
+          if (locResult && locResult.postalCode) {
+            customerPincode = locResult.postalCode;
+          }
+
+          if (customerPincode) {
+            const { data: hubData } = await supabase
+              .from("hub_locations")
+              .select("id")
+              .eq("pincode", customerPincode);
+
+            if (hubData) {
+              customerHubIds = hubData.map(h => h.id);
             }
+          }
+        } catch (e) {
+          console.log("Error resolving customer location:", e);
+        }
+
+        const { data: bannerLocations } = await supabase
+          .from("promotional_banner_locations")
+          .select("banner_id, location_id");
+
+        const bannerLocMap: Record<string, string[]> = {};
+        if (bannerLocations) {
+          bannerLocations.forEach(bl => {
+            if (!bannerLocMap[bl.banner_id]) {
+              bannerLocMap[bl.banner_id] = [];
+            }
+            bannerLocMap[bl.banner_id].push(bl.location_id);
           });
         }
-      }
 
-      console.log("[Banner] consumedBannerIds:", Array.from(consumedBannerIds));
+        const { data: bannerServices } = await supabase
+          .from("promotional_banner_services")
+          .select("banner_id, service_id");
 
-      let customerPincode: string | null = null;
-      let customerHubIds: string[] = [];
-
-      try {
-        const locResult = await LocationService.getSelectedLocation();
-        if (locResult && locResult.postalCode) {
-          customerPincode = locResult.postalCode;
+        const bannerSvcMap: Record<string, string[]> = {};
+        if (bannerServices) {
+          bannerServices.forEach(bs => {
+            if (!bannerSvcMap[bs.banner_id]) {
+              bannerSvcMap[bs.banner_id] = [];
+            }
+            bannerSvcMap[bs.banner_id].push(bs.service_id);
+          });
         }
 
-        if (customerPincode) {
-          const { data: hubData } = await supabase
-            .from("hub_locations")
-            .select("id")
-            .eq("pincode", customerPincode);
+        const currentServiceId: string | null = null;
 
-          if (hubData) {
-            customerHubIds = hubData.map(h => h.id);
+        console.log("=== BANNER ELIGIBILITY CHECK ===");
+        console.log("User ID:", userId);
+        console.log("Consumed Banner IDs:", Array.from(consumedBannerIds));
+        console.log("Customer Pincode:", customerPincode); console.log("Resolved Hub IDs:", customerHubIds);
+        console.log("Current Service ID:", currentServiceId);
+
+        const eligibleBanners = data.filter(banner => {
+          // 1. Hide if this user has already consumed THIS banner
+          if (consumedBannerIds.has(banner.id)) {
+            console.log(`Banner ${banner.id} hidden — already consumed by user.`);
+            return false;
           }
-        }
-      } catch (e) {
-        console.log("Error resolving customer location:", e);
-      }
 
-      const { data: bannerLocations } = await supabase
-        .from("promotional_banner_locations")
-        .select("banner_id, location_id");
+          // 2. Customer type — no longer tied to any global count.
+          // "new" and "everyone" always eligible until consumed.
+          // "existing" always eligible too (you can tighten this later).
+          // let customerEligible = true;
+          // if (banner.customer_type === "new") {
+          //   customerEligible = true;
+          // } else if (banner.customer_type === "existing") {
+          //   customerEligible = true;
+          // } else if (!banner.customer_type || banner.customer_type === "everyone") {
+          //   customerEligible = true;
+          // }
 
-      const bannerLocMap: Record<string, string[]> = {};
-      if (bannerLocations) {
-        bannerLocations.forEach(bl => {
-          if (!bannerLocMap[bl.banner_id]) {
-            bannerLocMap[bl.banner_id] = [];
+
+
+
+          // 2. Customer type + signup date eligibility
+          let customerEligible = true;
+
+          if (banner.customer_type === "new") {
+            // New-user campaign:
+            // User must have signed up during this banner's campaign period.
+            if (!userId || !session?.user?.created_at) {
+              customerEligible = false;
+
+              console.log(
+                `[Banner] ${banner.id} hidden — no authenticated user/signup date.`
+              );
+            } else {
+              const userCreatedAt = new Date(session.user.created_at);
+              const offerStart = banner.start_date
+                ? new Date(banner.start_date)
+                : null;
+              const offerEnd = banner.end_date
+                ? new Date(banner.end_date)
+                : null;
+
+              if (
+                !offerStart ||
+                !offerEnd ||
+                Number.isNaN(userCreatedAt.getTime()) ||
+                Number.isNaN(offerStart.getTime()) ||
+                Number.isNaN(offerEnd.getTime())
+              ) {
+                customerEligible = false;
+
+                console.log(
+                  `[Banner] ${banner.id} hidden — invalid campaign dates or signup date.`
+                );
+              } else {
+                customerEligible =
+                  userCreatedAt >= offerStart &&
+                  userCreatedAt <= offerEnd;
+
+                console.log(
+                  `[Banner] NEW USER date check | ` +
+                  `signup:${userCreatedAt.toISOString()} | ` +
+                  `start:${offerStart.toISOString()} | ` +
+                  `end:${offerEnd.toISOString()} | ` +
+                  `eligible:${customerEligible}`
+                );
+              }
+            }
+          } else if (banner.customer_type === "existing") {
+            customerEligible = true;
+          } else if (
+            !banner.customer_type ||
+            banner.customer_type === "everyone"
+          ) {
+            customerEligible = true;
           }
-          bannerLocMap[bl.banner_id].push(bl.location_id);
+
+          // 3. Location check (unchanged)
+          let locationEligible = false;
+          if (!banner.pincode_scope || banner.pincode_scope === "all") {
+            locationEligible = true;
+          } else if (banner.pincode_scope === "selected") {
+            const allowedLocs = bannerLocMap[banner.id] || [];
+            locationEligible = customerHubIds.some(hubId => allowedLocs.includes(hubId));
+          }
+
+          const finalEligible = customerEligible && locationEligible;
+
+          console.log(
+            `Banner ${banner.id} | consumed:${consumedBannerIds.has(banner.id)} | CustType:${banner.customer_type}(${customerEligible}) | LocScope:${banner.pincode_scope}(${locationEligible}) | Final:${finalEligible}`
+          );
+          return finalEligible;
         });
+        console.log("================================");
+        setPromotionalBanners(eligibleBanners);
+      } catch (err) {
+        console.error("Error evaluating banner eligibility:", err);
+        setPromotionalBanners(data);
       }
-
-      const { data: bannerServices } = await supabase
-        .from("promotional_banner_services")
-        .select("banner_id, service_id");
-
-      const bannerSvcMap: Record<string, string[]> = {};
-      if (bannerServices) {
-        bannerServices.forEach(bs => {
-          if (!bannerSvcMap[bs.banner_id]) {
-            bannerSvcMap[bs.banner_id] = [];
-          }
-          bannerSvcMap[bs.banner_id].push(bs.service_id);
-        });
-      }
-
-      const currentServiceId: string | null = null;
-
-      console.log("=== BANNER ELIGIBILITY CHECK ===");
-      console.log("User ID:", userId);
-      console.log("Consumed Banner IDs:", Array.from(consumedBannerIds));
-      console.log("Customer Pincode:", customerPincode);      console.log("Resolved Hub IDs:", customerHubIds);
-      console.log("Current Service ID:", currentServiceId);
-
-            const eligibleBanners = data.filter(banner => {
-        // 1. Hide if this user has already consumed THIS banner
-        if (consumedBannerIds.has(banner.id)) {
-          console.log(`Banner ${banner.id} hidden — already consumed by user.`);
-          return false;
-        }
-
-        // 2. Customer type — no longer tied to any global count.
-        // "new" and "everyone" always eligible until consumed.
-        // "existing" always eligible too (you can tighten this later).
-        // let customerEligible = true;
-        // if (banner.customer_type === "new") {
-        //   customerEligible = true;
-        // } else if (banner.customer_type === "existing") {
-        //   customerEligible = true;
-        // } else if (!banner.customer_type || banner.customer_type === "everyone") {
-        //   customerEligible = true;
-        // }
-
-
-
-
-        // 2. Customer type + signup date eligibility
-let customerEligible = true;
-
-if (banner.customer_type === "new") {
-  // New-user campaign:
-  // User must have signed up during this banner's campaign period.
-  if (!userId || !session?.user?.created_at) {
-    customerEligible = false;
-
-    console.log(
-      `[Banner] ${banner.id} hidden — no authenticated user/signup date.`
-    );
-  } else {
-    const userCreatedAt = new Date(session.user.created_at);
-    const offerStart = banner.start_date
-      ? new Date(banner.start_date)
-      : null;
-    const offerEnd = banner.end_date
-      ? new Date(banner.end_date)
-      : null;
-
-    if (
-      !offerStart ||
-      !offerEnd ||
-      Number.isNaN(userCreatedAt.getTime()) ||
-      Number.isNaN(offerStart.getTime()) ||
-      Number.isNaN(offerEnd.getTime())
-    ) {
-      customerEligible = false;
-
-      console.log(
-        `[Banner] ${banner.id} hidden — invalid campaign dates or signup date.`
-      );
-    } else {
-      customerEligible =
-        userCreatedAt >= offerStart &&
-        userCreatedAt <= offerEnd;
-
-      console.log(
-        `[Banner] NEW USER date check | ` +
-        `signup:${userCreatedAt.toISOString()} | ` +
-        `start:${offerStart.toISOString()} | ` +
-        `end:${offerEnd.toISOString()} | ` +
-        `eligible:${customerEligible}`
-      );
     }
-  }
-} else if (banner.customer_type === "existing") {
-  customerEligible = true;
-} else if (
-  !banner.customer_type ||
-  banner.customer_type === "everyone"
-) {
-  customerEligible = true;
-}
-
-        // 3. Location check (unchanged)
-        let locationEligible = false;
-        if (!banner.pincode_scope || banner.pincode_scope === "all") {
-          locationEligible = true;
-        } else if (banner.pincode_scope === "selected") {
-          const allowedLocs = bannerLocMap[banner.id] || [];
-          locationEligible = customerHubIds.some(hubId => allowedLocs.includes(hubId));
-        }
-
-        const finalEligible = customerEligible && locationEligible;
-
-        console.log(
-          `Banner ${banner.id} | consumed:${consumedBannerIds.has(banner.id)} | CustType:${banner.customer_type}(${customerEligible}) | LocScope:${banner.pincode_scope}(${locationEligible}) | Final:${finalEligible}`
-        );
-        return finalEligible;
-      });
-      console.log("================================");
-      setPromotionalBanners(eligibleBanners);
-    } catch (err) {
-      console.error("Error evaluating banner eligibility:", err);
-      setPromotionalBanners(data);
-    }
-  }
-}, []);
+  }, []);
 
   const fetchPopups = useCallback(async () => {
     if (hasShownPopupThisSession) return;
@@ -6821,8 +6822,8 @@ if (banner.customer_type === "new") {
 
     return () => interactionPromise.cancel();
   }, [fetchServices, fetchHeroBanners, fetchPromotionalBanners, fetchPopups, fetchMainCategories, checkWelcomeReward, checkSignupOfferReward]);
-  
-  
+
+
   // 👇👇👇 ADD THE FOCUS BLOCK HERE 👇👇👇
   useFocusEffect(
     useCallback(() => {
@@ -6837,9 +6838,9 @@ if (banner.customer_type === "new") {
       return () => clearInterval(interval);
     }, [fetchPromotionalBanners])
   );
-  
-  
-  
+
+
+
   // ⬇️⬇️⬇️ ADD THE REALTIME USEEFFECT HERE ⬇️⬇️⬇️
   useEffect(() => {
     let subscription: any = null;
@@ -6882,14 +6883,14 @@ if (banner.customer_type === "new") {
             // }
 
             const becameCompleted = newStatus === "COMPLETED" && oldStatus !== "COMPLETED";
-const becameCancelled = newStatus === "CANCELLED" && oldStatus !== "CANCELLED";
-const becameFailed = newStatus === "PAYMENT FAILED" && oldStatus !== "PAYMENT FAILED";
+            const becameCancelled = newStatus === "CANCELLED" && oldStatus !== "CANCELLED";
+            const becameFailed = newStatus === "PAYMENT FAILED" && oldStatus !== "PAYMENT FAILED";
 
-if (bannerId && (becameCompleted || becameCancelled || becameFailed)) {
-  console.log("[Banner Realtime] Refreshing banners due to status change →", newStatus);
-  fetchPromotionalBanners();
-}
-          }        )
+            if (bannerId && (becameCompleted || becameCancelled || becameFailed)) {
+              console.log("[Banner Realtime] Refreshing banners due to status change →", newStatus);
+              fetchPromotionalBanners();
+            }
+          })
         .subscribe((status) => {
           console.log("[Banner Realtime] Subscription status:", status);
         });
@@ -7168,7 +7169,7 @@ if (bannerId && (becameCompleted || becameCancelled || becameFailed)) {
 
 
 
-    // ✅ Auto-advance the APP_POPUP carousel every 3 seconds
+  // ✅ Auto-advance the APP_POPUP carousel every 3 seconds
   useEffect(() => {
     if (!showPopup || popupType !== "APP_POPUP" || appPopups.length <= 1) return;
 
@@ -7214,74 +7215,74 @@ if (bannerId && (becameCompleted || becameCancelled || becameFailed)) {
       <StatusBar barStyle="dark-content" backgroundColor="#FFC928" />
 
 
-        <ScrollView
-          ref={scrollRef}
-          onScroll={(e) => setShowGoUp(e.nativeEvent.contentOffset.y > 200)}
-          scrollEventThrottle={16}
+      <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => setShowGoUp(e.nativeEvent.contentOffset.y > 200)}
+        scrollEventThrottle={16}
 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.primary}
-              colors={[theme.primary]}
-              progressBackgroundColor={theme.background}
-            />
-          }
-          contentContainerStyle={[{ backgroundColor: theme.background }, bottomNavPadding]}
-        >
-          {/* 1. Header (Logo + Search) */}
-          <Header />
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.background}
+          />
+        }
+        contentContainerStyle={[{ backgroundColor: theme.background }, bottomNavPadding]}
+      >
+        {/* 1. Header (Logo + Search) */}
+        <Header />
 
-          {/* 2. Hero Slider */}
-          <HomeHero onBookNow={navigateToExpressCleaning} />
+        {/* 2. Hero Slider */}
+        <HomeHero onBookNow={navigateToExpressCleaning} />
 
-          {/* New User Promo Banner (Matching Website Image 1) */}
-          <PromotionalBannerSlider banners={promotionalBanners} theme={theme} onBannerPress={handleBannerPress} />
+        {/* New User Promo Banner (Matching Website Image 1) */}
+        <PromotionalBannerSlider banners={promotionalBanners} theme={theme} onBannerPress={handleBannerPress} />
 
 
-          {/* 3. Main Category Grid (Explore all services) */}
-          {mainCategories.length > 0 && (
-            <View style={styles.gridContainer} onLayout={(e) => setServicesY(e.nativeEvent.layout.y)}>
-              <View style={styles.grid}>
-                {mainCategories.map((mainCat) => (
-                  <Pressable
-                    key={mainCat.id}
-                    style={styles.gridItem}
-                    onPress={() => {
-                      const subs = allSubCategoriesByMainCategory.get(mainCat.id) || [];
-                      navigation.navigate("CategoryServices", {
-                        mainCategoryName: mainCat.name,
-                        mainCategoryId: mainCat.id,
-                        subCategories: subs
-                      });
-                    }}
-                  >
-                    {({ pressed }) => (
-                      <>
-                        <View style={[styles.gridIconContainer, pressed && styles.gridItemActive]}>
-                          {mainCat.icon_url ? (
-                            <Image source={{ uri: mainCat.icon_url }} style={styles.gridIcon} contentFit="contain" />
-                          ) : (
-                            <Ionicons name="apps-outline" size={32} color={theme.primary} />
-                          )}
-                        </View>
-                        <Text style={[styles.gridLabel, { color: theme.text }]} numberOfLines={2}>
-                          {mainCat.name}
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
+        {/* 3. Main Category Grid (Explore all services) */}
+        {mainCategories.length > 0 && (
+          <View style={styles.gridContainer} onLayout={(e) => setServicesY(e.nativeEvent.layout.y)}>
+            <View style={styles.grid}>
+              {mainCategories.map((mainCat) => (
+                <Pressable
+                  key={mainCat.id}
+                  style={styles.gridItem}
+                  onPress={() => {
+                    const subs = allSubCategoriesByMainCategory.get(mainCat.id) || [];
+                    navigation.navigate("CategoryServices", {
+                      mainCategoryName: mainCat.name,
+                      mainCategoryId: mainCat.id,
+                      subCategories: subs
+                    });
+                  }}
+                >
+                  {({ pressed }) => (
+                    <>
+                      <View style={[styles.gridIconContainer, pressed && styles.gridItemActive]}>
+                        {mainCat.icon_url ? (
+                          <Image source={{ uri: mainCat.icon_url }} style={styles.gridIcon} contentFit="contain" />
+                        ) : (
+                          <Ionicons name="apps-outline" size={32} color={theme.primary} />
+                        )}
+                      </View>
+                      <Text style={[styles.gridLabel, { color: theme.text }]} numberOfLines={2}>
+                        {mainCat.name}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              ))}
             </View>
-          )}
+          </View>
+        )}
 
 
-          {/* 6. Why Choose Us Section */}
-          <WhyChooseUs onBookNow={navigateToExpressCleaning} />
-        </ScrollView>
+        {/* 6. Why Choose Us Section */}
+        <WhyChooseUs onBookNow={navigateToExpressCleaning} />
+      </ScrollView>
 
       {/* Popups (Festive & Offers) */}
       <Modal visible={showPopup && !!popupType} transparent animationType="fade" onRequestClose={() => setShowPopup(false)}>
