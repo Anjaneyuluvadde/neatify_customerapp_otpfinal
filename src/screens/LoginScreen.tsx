@@ -1493,118 +1493,118 @@ export default function LoginScreen(props: any) {
   };
 
   const handleAuth = async () => {
-  // Prevent duplicate signup/login requests
-  if (authInProgressRef.current) {
-    console.log("[AUTH] Request already in progress - ignoring duplicate tap");
-    return;
-  }
-
-  // Basic validation
-  if (!email.trim() || !password.trim()) {
-    Alert.alert("Error", "Please enter email and password.");
-    return;
-  }
-
-  if (authMode === "signup") {
-    if (!fullName.trim()) {
-      Alert.alert("Error", "Please enter your full name.");
+    // Prevent duplicate signup/login requests
+    if (authInProgressRef.current) {
+      console.log("[AUTH] Request already in progress - ignoring duplicate tap");
       return;
     }
 
-    // if (!termsAccepted) {
-    //   Alert.alert(
-    //     "Terms Required",
-    //     "Please accept the Terms & Conditions and Privacy Policy."
-    //   );
-    //   return;
-    // }
-  }
-
-  // Lock immediately BEFORE starting Supabase request
-  authInProgressRef.current = true;
-  setLoading(true);
-
-  try {
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (authMode === "login") {
-      console.log("[AUTH] Login started:", cleanEmail);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      console.log("[AUTH] Login successful:", data.user?.id);
-    } else {
-      console.log("[AUTH] Signup started:", cleanEmail);
-
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-          },
-        },
-      });
-
-      console.log("[AUTH] Signup response:", {
-        hasUser: !!data.user,
-        userId: data.user?.id,
-        hasSession: !!data.session,
-        error: error?.message,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data.session && data.user) {
-        console.log("[AUTH] Signup successful - session created");
-
-        showToast("Terms & Conditions accepted");
-//         showAlert({
-//   title: "Signup Successful",
-//   message: "Your account has been created successfully.",
-//   type: "success",
-// });
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-
-        await checkProfileAndNavigate(
-          data.user.id,
-          cleanEmail,
-          fullName.trim(),
-          true
-        );
-      } else {
-        Alert.alert(
-          "Verify Email",
-          "Please check your email and verify your account before logging in."
-        );
-
-        setAuthMode("login");
-      }
+    // Basic validation
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please enter email and password.");
+      return;
     }
-  } catch (err: any) {
-    console.error("[AUTH] Error:", err);
 
-    Alert.alert(
-      "Authentication Error",
-      err?.message || "Something went wrong. Please try again."
-    );
-  } finally {
-    // Unlock after request completely finishes
-    authInProgressRef.current = false;
-    setLoading(false);
-  }
-};
+    if (authMode === "signup") {
+      if (!fullName.trim()) {
+        Alert.alert("Error", "Please enter your full name.");
+        return;
+      }
+
+      // if (!termsAccepted) {
+      //   Alert.alert(
+      //     "Terms Required",
+      //     "Please accept the Terms & Conditions and Privacy Policy."
+      //   );
+      //   return;
+      // }
+    }
+
+    // Lock immediately BEFORE starting Supabase request
+    authInProgressRef.current = true;
+    setLoading(true);
+
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (authMode === "login") {
+        console.log("[AUTH] Login started:", cleanEmail);
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        console.log("[AUTH] Login successful:", data.user?.id);
+      } else {
+        console.log("[AUTH] Signup started:", cleanEmail);
+
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              full_name: fullName.trim(),
+            },
+          },
+        });
+
+        console.log("[AUTH] Signup response:", {
+          hasUser: !!data.user,
+          userId: data.user?.id,
+          hasSession: !!data.session,
+          error: error?.message,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session && data.user) {
+          console.log("[AUTH] Signup successful - session created");
+
+          showToast("Terms & Conditions accepted");
+          //         showAlert({
+          //   title: "Signup Successful",
+          //   message: "Your account has been created successfully.",
+          //   type: "success",
+          // });
+
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+
+          await checkProfileAndNavigate(
+            data.user.id,
+            cleanEmail,
+            fullName.trim(),
+            true
+          );
+        } else {
+          Alert.alert(
+            "Verify Email",
+            "Please check your email and verify your account before logging in."
+          );
+
+          setAuthMode("login");
+        }
+      }
+    } catch (err: any) {
+      console.error("[AUTH] Error:", err);
+
+      Alert.alert(
+        "Authentication Error",
+        err?.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      // Unlock after request completely finishes
+      authInProgressRef.current = false;
+      setLoading(false);
+    }
+  };
 
   // -------------------------------------
   // Animations
@@ -1737,7 +1737,7 @@ export default function LoginScreen(props: any) {
                   }
                 />
                 {authMode === 'login' && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={{ alignSelf: "flex-end", marginTop: 8 }}
                     onPress={() => navigation.navigate("ResetPassword")}
                   >
@@ -1800,25 +1800,34 @@ export default function LoginScreen(props: any) {
                     <View style={{ flex: 1, height: 1, backgroundColor: "#E5E5E5" }} />
                   </View>
 
-                  <Pressable 
+                  <Pressable
                     onPress={async () => {
                       try {
                         setLoading(true);
                         const { signInWithGoogle } = await import('../auth/useGoogleAuth');
-                        await signInWithGoogle();
+                        const authResult = await signInWithGoogle();
+
+                        if (authResult && authResult.user) {
+                          await checkProfileAndNavigate(
+                            authResult.user.id,
+                            authResult.user.email || "",
+                            authResult.user.user_metadata?.full_name || "",
+                            authResult.isNewUser // This triggers your promotional banner!
+                          );
+                        }
                       } catch (err: any) {
                         showAlert({ type: "error", title: "Google Sign-In Failed", message: err.message });
                       } finally {
                         setLoading(false);
                       }
-                    }} 
+                    }}
                     disabled={loading}
                   >
                     <View style={styles.googleBtn}>
-                      <Image 
-                        source={{ uri: "https://developers.google.com/identity/images/g-logo.png" }} 
-                        style={{ width: 22, height: 22, marginRight: 10 }} 
-                        contentFit="contain" 
+                      <Image
+                        source={{ uri: "https://developers.google.com/identity/images/g-logo.png" }}
+                        style={{ width: 22, height: 22, marginRight: 10 }}
+                        contentFit="contain"
                       />
                       <Text style={styles.googleBtnText}>Continue with Google</Text>
                     </View>
@@ -1838,30 +1847,30 @@ export default function LoginScreen(props: any) {
               </View>
 
               <View style={styles.policyFooter}>
-  <Text style={styles.policyContinueText}>
-    By continuing, you agree to our
-  </Text>
+                <Text style={styles.policyContinueText}>
+                  By continuing, you agree to our
+                </Text>
 
-  <View style={styles.policyLinksRow}>
-    <TouchableOpacity onPress={() => setShowTermsModal(true)}>
-      <Text style={styles.policyLink}>
-        Terms & Conditions
-      </Text>
-    </TouchableOpacity>
+                <View style={styles.policyLinksRow}>
+                  <TouchableOpacity onPress={() => setShowTermsModal(true)}>
+                    <Text style={styles.policyLink}>
+                      Terms & Conditions
+                    </Text>
+                  </TouchableOpacity>
 
-    <Text style={styles.policySeparator}>|</Text>
+                  <Text style={styles.policySeparator}>|</Text>
 
-    <TouchableOpacity onPress={() => setShowPrivacyModal(true)}>
-      <Text style={styles.policyLink}>
-        Privacy Policy
-      </Text>
-    </TouchableOpacity>
-  </View>
+                  <TouchableOpacity onPress={() => setShowPrivacyModal(true)}>
+                    <Text style={styles.policyLink}>
+                      Privacy Policy
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-  <Text style={styles.poweredByText}>
-    Powered by The Neatify Services (OPC) Pvt. Ltd.
-  </Text>
-</View>
+                <Text style={styles.poweredByText}>
+                  Powered by The Neatify Services (OPC) Pvt. Ltd.
+                </Text>
+              </View>
 
             </View>
           </Animated.View>
@@ -2044,57 +2053,57 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
   },
-//   linkText: {
-//     fontWeight: "800",
-//     color: COLORS.saffron,
-//     fontSize: 14,
-//   },
-// });
+  //   linkText: {
+  //     fontWeight: "800",
+  //     color: COLORS.saffron,
+  //     fontSize: 14,
+  //   },
+  // });
 
 
-linkText: {
-  fontWeight: "800",
-  color: COLORS.saffron,
-  fontSize: 14,
-},
+  linkText: {
+    fontWeight: "800",
+    color: COLORS.saffron,
+    fontSize: 14,
+  },
 
-policyFooter: {
-  alignItems: "center",
-  marginTop: 24,
-  paddingHorizontal: 10,
-  paddingBottom: 10,
-},
+  policyFooter: {
+    alignItems: "center",
+    marginTop: 24,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
 
-policyContinueText: {
-  fontSize: 14,
-  color: "#777",
-  textAlign: "center",
-  marginBottom: 4,
-},
+  policyContinueText: {
+    fontSize: 14,
+    color: "#777",
+    textAlign: "center",
+    marginBottom: 4,
+  },
 
-policyLinksRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-},
+  policyLinksRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-policyLink: {
-  fontSize: 15,
-  fontWeight: "700",
-  color: "#222",
-  textDecorationLine: "underline",
-},
+  policyLink: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#222",
+    textDecorationLine: "underline",
+  },
 
-policySeparator: {
-  fontSize: 15,
-  color: "#999",
-  marginHorizontal: 10,
-},
+  policySeparator: {
+    fontSize: 15,
+    color: "#999",
+    marginHorizontal: 10,
+  },
 
-poweredByText: {
-  fontSize: 13,
-  color: "#999",
-  textAlign: "center",
-  marginTop: 28,
-},
+  poweredByText: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 28,
+  },
 });

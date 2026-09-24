@@ -6,8 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../context/ThemeContext";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { supabase } from "../lib/supabase";
-import { registerForPushNotificationsAsync, removePushTokenFromSupabase } from "../utils/pushNotifications";
 import { COLORS } from "../theme/colors";
+import { registerForPushNotificationsAsync, removePushTokenFromSupabase } from "../utils/pushNotifications";
 
 export default function CustomDrawerContent(props: DrawerContentComponentProps) {
   const insets = useSafeAreaInsets();
@@ -110,6 +110,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             onPress={async () => {
               if (await checkAuth("view your bookings")) {
                 props.navigation.navigate("AuthenticatedScreens", { screen: "MainTabs", params: { screen: "MyBookingsTab" } });
+                props.navigation.closeDrawer();
               }
             }}
           >
@@ -125,6 +126,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             onPress={async () => {
               if (await checkAuth("view your profile")) {
                 props.navigation.navigate("AuthenticatedScreens", { screen: "MainTabs", params: { screen: "ProfileTab" } });
+                props.navigation.closeDrawer();
               }
             }}
           >
