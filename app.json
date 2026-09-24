@@ -26,6 +26,11 @@
     "android": {
       "package": "com.theneatifyteam.app",
       "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC7CFBCBSfRPefwPvAGfqwhN0JF1EmKBbI"
+        }
+      },
       "versionCode": 11,
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -74,6 +79,12 @@
     },
     "plugins": [
       "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Neatify to use your location to find nearby services."
+        }
+      ],
       [
         "expo-notifications",
         {

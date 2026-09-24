@@ -6057,6 +6057,7 @@ export default function HomeScreen({ navigation }: any) {
   const [showServiceSelectModal, setShowServiceSelectModal] = useState(false);
   const [selectedPromoServiceId, setSelectedPromoServiceId] = useState<string | null>(null);
   const [promoBannerServices, setPromoBannerServices] = useState<any[]>([]);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const checkWelcomeReward = useCallback(async () => {
     try {
@@ -6211,6 +6212,13 @@ export default function HomeScreen({ navigation }: any) {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+
+      // 👇 NEW CHECK: Stop flow and show popup if not logged in
+      if (!session?.user) {
+        setShowLoginPrompt(true);
+        return;
+      }
+
       if (session?.user) {
         // Check for specific banner reuse
         // Check for specific banner reuse:
@@ -6691,10 +6699,15 @@ export default function HomeScreen({ navigation }: any) {
           // 2. Customer type + signup date eligibility
           let customerEligible = true;
 
-          if (banner.customer_type === "new") {
+          // 👇 NEW LOGIC: Allow logged-out users to see banners for marketing
+          if (!userId) {
+            customerEligible = true;
+          }
+          // 👇 EXISTING LOGIC for logged-in users
+          else if (banner.customer_type === "new") {
             // New-user campaign:
             // User must have signed up during this banner's campaign period.
-            if (!userId || !session?.user?.created_at) {
+            if (!session?.user?.created_at) {
               customerEligible = false;
 
               console.log(
@@ -7550,6 +7563,42 @@ export default function HomeScreen({ navigation }: any) {
                 disabled={!selectedPromoServiceId || loadingPromoServices}
               >
                 <Text style={{ fontSize: 15, fontWeight: '700', color: selectedPromoServiceId ? "#FFFFFF" : "#94A3B8" }}>Claim Offer</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Login Required Popup for Banners */}
+      <Modal visible={showLoginPrompt} transparent animationType="fade" onRequestClose={() => setShowLoginPrompt(false)}>
+        <Pressable style={popupStyles.overlay} onPress={() => setShowLoginPrompt(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[popupStyles.container, { backgroundColor: theme.background, width: POPUP_WIDTH, padding: 24 }]}>
+            <View style={{ alignItems: "center" }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(244, 196, 48, 0.2)", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+                <Ionicons name="person-outline" size={32} color={COLORS.saffron} />
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: theme.text, marginBottom: 8, textAlign: "center" }}>
+                Login Required
+              </Text>
+              <Text style={{ fontSize: 14, color: theme.textLight, textAlign: "center", marginBottom: 24, lineHeight: 20 }}>
+                Please login or create an account to continue and claim this promotional offer.
+              </Text>
+
+              <TouchableOpacity
+                style={{ width: "100%", backgroundColor: theme.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", marginBottom: 12 }}
+                onPress={() => {
+                  setShowLoginPrompt(false);
+                  navigation.navigate("Login");
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFFFFF" }}>Login / Sign Up</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ width: "100%", paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.border, alignItems: "center" }}
+                onPress={() => setShowLoginPrompt(false)}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textLight }}>Close</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
