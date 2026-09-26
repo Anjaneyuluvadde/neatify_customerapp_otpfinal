@@ -598,31 +598,30 @@
 
 
 
-import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../context/ThemeContext";
+import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 
 import CustomDrawerContent from "../components/CustomDrawerContent";
 import CustomTabBar from "../components/CustomTabBar";
 import BookingDetailsScreen from "../screens/BookingDetailsScreen";
 import BookingScreen from "../screens/BookingScreen";
 import CategoryDetailScreen from "../screens/CategoryDetailScreen";
+import CategoryServicesScreen from "../screens/CategoryServicesScreen";
 import CheckoutScreen from "../screens/CheckoutScreen";
+import ComingSoonScreen from "../screens/ComingSoonScreen";
 import HomeScreen from "../screens/HomeScreen";
+import LocationAccessScreen from "../screens/LocationAccessScreen";
+import LocationSearchScreen from "../screens/LocationSearchScreen";
 import LoginScreen from "../screens/LoginScreen";
 import MyBookingsScreen from "../screens/MyBookingsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ResetPasswordScreen from "../screens/ResetPasswordScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import ServiceDetailScreen from "../screens/ServiceDetailScreen";
-import CategoryServicesScreen from "../screens/CategoryServicesScreen";
-import LocationAccessScreen from "../screens/LocationAccessScreen";
-import ComingSoonScreen from "../screens/ComingSoonScreen";
-import LocationSearchScreen from "../screens/LocationSearchScreen";
 
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { Service } from "../types/service";
@@ -651,6 +650,7 @@ export type RootStackParamList = {
   LocationAccess: undefined;
   ComingSoon: undefined;
   Login: undefined;
+  CompleteProfile: any;
   HomeDrawer: {
     screen?: string;
     params?: any;
@@ -865,6 +865,7 @@ export default function AppNavigator({ initialRouteName }: AppNavigatorProps) {
       <Stack.Screen name="LocationAccess" component={LocationAccessScreen} />
       <Stack.Screen name="ComingSoon" component={ComingSoonScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen as any} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen as any} />
       <Stack.Screen name="HomeDrawer" component={HomeDrawer} />
     </Stack.Navigator>
