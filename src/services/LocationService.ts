@@ -4,6 +4,13 @@ import { getServiceAreaMatch, isServiceable } from "../config/serviceAreas";
 import { supabase } from "../lib/supabase";
 
 const SELECTED_LOCATION_KEY = "neatify_selected_location";
+const SELECTED_SERVICE_AREA_KEY = "neatify_selected_service_area";
+
+export interface ServiceAreaSelection {
+  name: string;
+  pincode: string;
+  isServiceable: boolean;
+}
 
 export interface LocationResult {
   locality: string;
@@ -16,7 +23,10 @@ export interface LocationResult {
   status: 'success' | 'permission_denied' | 'error' | 'unserviceable' | 'services_disabled';
 }
 
+
 class LocationService {
+  public static sessionServiceAreaBypass: boolean = false;
+
   /**
    * Helper to parse the most specific locality string from Expo's address object.
    * Matches Android/iOS specific fields accurately.
@@ -43,6 +53,66 @@ class LocationService {
       await AsyncStorage.removeItem(SELECTED_LOCATION_KEY);
     }
   }
+  /**
+ * Save the service area selected from the
+ * "Try These Locations" section.
+ *
+ * This is NOT the customer's actual address.
+ * It only stores the service area + pincode.
+ */
+public static async setSelectedServiceArea(
+  area: ServiceAreaSelection | null
+) {
+  try {
+    if (area) {
+      await AsyncStorage.setItem(
+        SELECTED_SERVICE_AREA_KEY,
+        JSON.stringify(area)
+      );
+
+      console.log(
+        "✅ Selected service area stored:",
+        area
+      );
+    } else {
+      await AsyncStorage.removeItem(
+        SELECTED_SERVICE_AREA_KEY
+      );
+
+      console.log(
+        "🗑️ Selected service area cleared"
+      );
+    }
+  } catch (error) {
+    console.error(
+      "❌ Error saving selected service area:",
+      error
+    );
+  }
+}
+
+/**
+ * Get the service area selected from
+ * "Try These Locations".
+ */
+public static async getSelectedServiceArea(): Promise<ServiceAreaSelection | null> {
+  try {
+    const data = await AsyncStorage.getItem(
+      SELECTED_SERVICE_AREA_KEY
+    );
+
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error(
+      "❌ Error reading selected service area:",
+      error
+    );
+  }
+
+  return null;
+}
 
   public static async getSelectedLocation(): Promise<LocationResult | null> {
     try {

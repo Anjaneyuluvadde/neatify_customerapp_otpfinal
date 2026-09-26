@@ -35,6 +35,7 @@ import { supabase } from "../lib/supabase";
 import { RootStackParamList, SelectedService } from "../navigation/AppNavigator";
 import { COLORS } from "../theme/colors";
 import { Service } from "../types/service";
+import { getClaimedOffer } from "../utils/priceUtils";
 
 /* ================= TYPES ================= */
 
@@ -355,18 +356,46 @@ export default function ServiceDetailScreen({ route }: Props) {
   const fetchActiveOffer = useCallback(async (currentService: Service | null) => {
     if (!currentService) return;
 
-    // Session-claimed offers are now applied as coupons at checkout.
+    try {
+      // 1. Check for valid promotional claim first
+      const claim = await getClaimedOffer();
+      if (claim && claim.source === "promotional_banner") {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        
+        if (userId && claim.userId === userId && claim.serviceId === currentService.id) {
+          const { data: profile } = await supabase
+            .from("profile")
+            .select("service_selected, promotional_banner_selected")
+            .eq("id", userId)
+            .maybeSingle();
 
-    const { data: offerData } = await supabase
-      .from("offers")
-      .select("offer_percentage")
-      .eq("title", currentService.title)
-      .eq("is_offer_enabled", true)
-      .maybeSingle();
+          if (
+            profile?.service_selected === currentService.id &&
+            profile?.promotional_banner_selected === claim.bannerId
+          ) {
+            console.log(`[PROMO] Valid claim found for ${currentService.title}, applying ${claim.offerPercentage}%`);
+            setActiveOfferPercent(claim.offerPercentage);
+            return;
+          }
+        }
+      }
 
-    if (offerData && offerData.offer_percentage > 0) {
-      setActiveOfferPercent(offerData.offer_percentage);
-    } else {
+      // 2. Fallback to generic offers
+      const { data: offerData } = await supabase
+        .from("offers")
+        .select("offer_percentage")
+        .eq("title", currentService.title)
+        .eq("is_offer_enabled", true)
+        .maybeSingle();
+
+      if (offerData && offerData.offer_percentage > 0) {
+        setActiveOfferPercent(offerData.offer_percentage);
+      } else {
+        setActiveOfferPercent(null);
+      }
+    } catch (e) {
+      console.error("[PROMO] Error checking active offer:", e);
       setActiveOfferPercent(null);
     }
   }, []);

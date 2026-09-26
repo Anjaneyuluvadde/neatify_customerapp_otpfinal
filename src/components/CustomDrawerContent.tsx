@@ -93,7 +93,10 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
         </View>
 
         {!session && (
-          <Pressable style={styles.loginButton} onPress={() => props.navigation.navigate("Login")}>
+          <Pressable style={styles.loginButton} onPress={() => {
+            props.navigation.closeDrawer();
+            props.navigation.navigate("Login");
+          }}>
             <Text style={styles.loginButtonText}>Login / Sign Up</Text>
             <Ionicons name="arrow-forward" size={18} color={COLORS.black} />
           </Pressable>
@@ -108,6 +111,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           <Pressable
             style={styles.navItem}
             onPress={async () => {
+              props.navigation.closeDrawer();
               if (await checkAuth("view your bookings")) {
                 props.navigation.navigate("AuthenticatedScreens", { screen: "MainTabs", params: { screen: "MyBookingsTab" } });
                 props.navigation.closeDrawer();
@@ -124,6 +128,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           <Pressable
             style={styles.navItem}
             onPress={async () => {
+              props.navigation.closeDrawer();
               if (await checkAuth("view your profile")) {
                 props.navigation.navigate("AuthenticatedScreens", { screen: "MainTabs", params: { screen: "ProfileTab" } });
                 props.navigation.closeDrawer();

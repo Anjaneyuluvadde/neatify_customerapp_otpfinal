@@ -242,7 +242,7 @@
 //                 .ilike('payment_status', 'paid');
 //               bookingCount = count || 0;
 //             }
-            
+
 //             console.log("[COUPON STEP 2] Booking count:", bookingCount);
 //             if (bookingCount > 0) {
 //               console.log("[COUPON STEP 2] Eligibility: EXISTING USER. Rejecting NEW_USER offer.");
@@ -519,7 +519,7 @@
 //       if (couponData && !couponData.is_used) {
 //         console.log("✅ Valid unused coupon found:", couponData.coupon_code);
 //         console.log("[COUPON STEP 5] Final coupon state:", couponData.coupon_code);
-        
+
 //         // Fix for manual coupons: ensure they actually apply the discount
 //         setTimeout(() => {
 //           const discountPct = couponData.discount_percentage || couponData.discount_p || 0;
@@ -1045,7 +1045,7 @@
 //                 ? coupon.discount_amount
 //                 : Number((((totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice) * couponDiscount) / 100).toFixed(2)))
 //               : 0,
-            
+
 //             promotional_banner_id: promotionalBannerId,
 //           }
 //         ])
@@ -1481,12 +1481,12 @@
 //           <Text style={[styles.sectionHeading, { color: theme.text }]}>{t("checkout.serviceAddress")}</Text>
 
 //           <View style={[styles.card, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            
+
 //             {/* ✅ Customer Details */}
 //             <View style={{ marginBottom: 16, paddingHorizontal: 16, paddingTop: 16 }}>
 //               <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Name</Text>
 //               <Text style={{ fontSize: 16, color: theme.text, fontWeight: '500', marginBottom: 12 }}>{profile?.full_name || "N/A"}</Text>
-              
+
 //               <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Phone Number</Text>
 //               <Text style={{ fontSize: 16, color: theme.text, fontWeight: '500', marginBottom: 12 }}>{profile?.phone || "N/A"}</Text>
 
@@ -2628,15 +2628,16 @@ export default function CheckoutScreen({ route }: Props) {
   }>({ title: '', message: '', type: 'error' });
 
   // Address Form State
-  const [manualAddress, setManualAddress] = useState("");
-  const [pincode, setPincode] = useState("");
+  const [serviceAreaContext, setServiceAreaContext] = useState<{name: string, pincode: string} | null>(null);
+  const [manualAddress, setManualAddress] = useState(route.params?.manualAddress || "");
+  const [pincode, setPincode] = useState(route.params?.pincode || "");
 
   // Location coordinates (not displayed, only stored in booking)
-  const [bookingLatitude, setBookingLatitude] = useState<number | null>(null);
-  const [bookingLongitude, setBookingLongitude] = useState<number | null>(null);
+  const [bookingLatitude, setBookingLatitude] = useState<number | null>(route.params?.bookingLatitude || null);
+  const [bookingLongitude, setBookingLongitude] = useState<number | null>(route.params?.bookingLongitude || null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [isAddressSummaryMode, setIsAddressSummaryMode] = useState(true);
-  const [hasUsedLocationFetch, setHasUsedLocationFetch] = useState(true);
+  const [hasUsedLocationFetch, setHasUsedLocationFetch] = useState(!!route.params?.manualAddress);
 
   // ✅ Pincode verification state
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean>(false);
@@ -2646,7 +2647,7 @@ export default function CheckoutScreen({ route }: Props) {
   const [policies, setPolicies] = useState<Policies | null>(null);
 
   // ✅ Coupon state
-  const [coupon, setCoupon] = useState<{ id: string; coupon_code: string; discount_percentage?: number; discount_amount?: number; source?: "MANUAL_COUPON" | "PROMOTIONAL_BANNER" | "SERVICE_DISCOUNT" | "NEW_USER" | "GENERIC_OFFER" | "MANUAL_ENTRY" } | null>(null);
+  const [coupon, setCoupon] = useState<{ id: string; coupon_code: string; discount_percentage?: number; discount_amount?: number; source?: "MANUAL_COUPON" | "PROMOTIONAL_BANNER" | "SERVICE_DISCOUNT" | "NEW_USER" | "GENERIC_OFFER" | "MANUAL_ENTRY"; serviceId?: string } | null>(null);
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponDiscount, setCouponDiscount] = useState(0);
 
@@ -2676,9 +2677,24 @@ export default function CheckoutScreen({ route }: Props) {
     if (coupon.discount_amount && coupon.discount_amount > 0) {
       return coupon.discount_amount;
     }
+    
+    if (coupon.source === "PROMOTIONAL_BANNER") {
+      if (!coupon.serviceId) return 0;
+      
+      const svc = checkoutServices.find(s => s.id === coupon.serviceId);
+      if (svc) {
+        const qty = svc.quantity || 1;
+        const priceToDiscount = (svc.original_price && Number(String(svc.original_price).replace(/[^\d.]/g, '')) > 0)
+          ? Number(String(svc.original_price).replace(/[^\d.]/g, ''))
+          : parsePrice(svc.price);
+        return Number(((priceToDiscount * qty * couponDiscount) / 100).toFixed(2));
+      }
+      return 0; // If the service isn't in the cart, no discount
+    }
+
     const baseForDiscount = totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice;
     return Number(((baseForDiscount * couponDiscount) / 100).toFixed(2));
-  }, [couponApplied, coupon, totalOriginalPrice, totalPrice, couponDiscount]);
+  }, [couponApplied, coupon, totalOriginalPrice, totalPrice, couponDiscount, checkoutServices]);
 
   const effectiveSubtotal = useMemo(() => {
     if (couponApplied && coupon) {
@@ -2730,31 +2746,45 @@ export default function CheckoutScreen({ route }: Props) {
         if (isValidClaim) {
           const pct = claimed.offerPercentage || 40;
 
-                    if (claimed.type === "NEW_USER") {
-            console.log("[COUPON STEP 2] Eligibility: NEW_USER. Applying offer.");
-            if (!isMounted) return;
-            setCoupon({
-              id: "claimed_new_user",
-              coupon_code: `NEW${pct}_OFFER`,
-              discount_percentage: pct,
-              discount_amount: 0,
-              source: "NEW_USER",
-            });
-            setCouponDiscount(pct);
-            setCouponApplied(true);
-            setCouponStatus({ type: 'success', message: `Coupon applied! ${pct}% off for ${claimed.serviceTitle || "selected service"}` });
-            console.log(`[COUPON STEP 2] Final coupon code: NEW${pct}_OFFER`);
-            return;
-          } else if (claimed.type === "PROMOTIONAL_BANNER") {
+          if (claimed.type === "PROMOTIONAL_BANNER") {
             const { data: { session } } = await supabase.auth.getSession();
+            
+            // Check auth mismatch
+            if (claimed.userId && session?.user?.id && claimed.userId !== session.user.id) {
+              console.log("[COUPON STEP 7] PROMOTIONAL_BANNER userId mismatch. Blocking.");
+              await clearClaimedOffer();
+              return;
+            }
+
             if (session?.user && claimed.bannerId) {
-              const { count, error } = await supabase
+              const { data: promoBookings, error } = await supabase
                 .from("bookings")
-                .select("id", { count: "exact", head: true })
+                .select("services, work_status")
                 .eq("user_id", session.user.id)
                 .eq("promotional_banner_id", claimed.bannerId)
-                .eq("payment_verified", true)
-                .ilike("payment_status", "paid");
+                .eq("work_status", "COMPLETED");
+
+              let isAlreadyUsed = false;
+              if (promoBookings && promoBookings.length > 0) {
+                for (const booking of promoBookings) {
+                  let bServices = booking.services;
+                  if (typeof bServices === "string") {
+                    try {
+                      bServices = JSON.parse(bServices);
+                    } catch {
+                      bServices = [];
+                    }
+                  }
+                  if (Array.isArray(bServices)) {
+                    if (bServices.some((s: any) => s.id === claimed.serviceId)) {
+                      isAlreadyUsed = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              const count = isAlreadyUsed ? 1 : 0;
 
               console.log("[COUPON STEP 7] PROMOTIONAL_BANNER redemption check:", {
                 bannerId: claimed.bannerId,
@@ -2780,16 +2810,17 @@ export default function CheckoutScreen({ route }: Props) {
             console.log("[COUPON STEP 8] Eligibility: PROMOTIONAL_BANNER. Applying exact banner offer.");
 
             if (!isMounted) return;
-            const promoCode = claimed.bannerId 
+            const promoCode = claimed.bannerId
               ? `PROMO_${claimed.bannerId.substring(0, 8).toUpperCase()}_${pct}OFF`
               : `PROMO_${pct}OFF`;
 
             setCoupon({
               id: claimed.bannerId || "claimed_promo_banner",
-              coupon_code: promoCode,
+              coupon_code: `BANNER${pct}`,
               discount_percentage: pct,
               discount_amount: 0,
               source: "PROMOTIONAL_BANNER",
+              serviceId: claimed.serviceId || undefined,
             });
             setCouponDiscount(pct);
             setCouponApplied(true);
@@ -2820,24 +2851,24 @@ export default function CheckoutScreen({ route }: Props) {
       }
 
       // If no claimed offer, check if any service in checkout has discount_percent > 0 (e.g. 40% OFF)
-const serviceWithDiscount = checkoutServices.find(s => s.discount_percent && Number(s.discount_percent) > 0);
-if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
-  const pct = Number(serviceWithDiscount.discount_percent);
-  if (!isMounted) return;
-  setCoupon({
-    id: "service_discount_offer",
-    coupon_code: serviceWithDiscount.discount_label ? String(serviceWithDiscount.discount_label).toUpperCase().replace(/\s+/g, '') : `OFFER_${pct}%`,
-    discount_percentage: pct,
-    discount_amount: 0,
-    source: "SERVICE_DISCOUNT",
-  });
-  setCouponDiscount(pct);
-  setCouponApplied(true);
-  setCouponStatus({ type: 'success', message: `Special ${pct}% offer applied!` });
+      const serviceWithDiscount = checkoutServices.find(s => s.discount_percent && Number(s.discount_percent) > 0);
+      if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
+        const pct = Number(serviceWithDiscount.discount_percent);
+        if (!isMounted) return;
+        setCoupon({
+          id: "service_discount_offer",
+          coupon_code: serviceWithDiscount.discount_label ? String(serviceWithDiscount.discount_label).toUpperCase().replace(/\s+/g, '') : `OFFER_${pct}%`,
+          discount_percentage: pct,
+          discount_amount: 0,
+          source: "SERVICE_DISCOUNT",
+        });
+        setCouponDiscount(pct);
+        setCouponApplied(true);
+        setCouponStatus({ type: 'success', message: `Special ${pct}% offer applied!` });
 
-  // 🧹 Clear stale banner claim since we're using a service discount instead
-  await clearClaimedOffer();
-}
+        // 🧹 Clear stale banner claim since we're using a service discount instead
+        await clearClaimedOffer();
+      }
     };
 
     applyClaimedOfferAsCoupon();
@@ -3004,7 +3035,7 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
       if (couponData && !couponData.is_used) {
         console.log("✅ Valid unused coupon found:", couponData.coupon_code);
         console.log("[COUPON STEP 5] Final coupon state:", couponData.coupon_code);
-        
+
         // Fix for manual coupons: ensure they actually apply the discount
         setTimeout(() => {
           const discountPct = couponData.discount_percentage || couponData.discount_p || 0;
@@ -3027,11 +3058,14 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
     });
   };
 
-  useEffect(() => {
-    if (profile?.phone) {
-      fetchUserCoupon(profile.phone);
-    }
-  }, [profile?.phone]);
+  // ✅ Removed automatic coupon discovery to prevent generic new-user coupons
+  // from incorrectly applying and overriding promotional banner constraints.
+  // Users must manually enter generic coupons if they want them.
+  // useEffect(() => {
+  //   if (profile?.phone) {
+  //     fetchUserCoupon(profile.phone);
+  //   }
+  // }, [profile?.phone]);
 
   /* ================= FETCH POLICIES ================= */
 
@@ -3088,17 +3122,27 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
 
       // ✅ Initial coupon fetch moved to useEffect [profile?.phone]
 
-      const cachedLoc = await LocationService.getSelectedLocation();
-      const freshPin = cachedLoc?.postalCode || "";
-
-      setPincode(freshPin);
-      setManualAddress(cachedLoc?.fullAddress || "");
-      if (cachedLoc) {
-        setBookingLatitude(cachedLoc.latitude);
-        setBookingLongitude(cachedLoc.longitude);
+      const selectedServiceArea = await LocationService.getSelectedServiceArea();
+      
+      if (selectedServiceArea && selectedServiceArea.isServiceable) {
+        setServiceAreaContext({ name: selectedServiceArea.name, pincode: selectedServiceArea.pincode });
+      } else {
+        setServiceAreaContext(null);
       }
-      setIsAddressSummaryMode(true);
-      setHasUsedLocationFetch(true);
+
+      // DO NOT auto-populate customer's actual address from GPS or Service Area.
+      // But if it was passed via route params, keep it!
+      if (!route.params?.manualAddress) {
+        setPincode("");
+        setManualAddress("");
+        setBookingLatitude(null);
+        setBookingLongitude(null);
+        setIsAddressSummaryMode(true); // Default to showing summary mode (which says "Add Address" because it's empty)
+        setHasUsedLocationFetch(false);
+      } else {
+        setIsAddressSummaryMode(true);
+        setHasUsedLocationFetch(true);
+      }
     } else {
       setAlertConfig({
         title: 'Profile Not Found',
@@ -3253,24 +3297,24 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
           setCouponStatus({ type: "error", message: "This coupon is not valid for your phone number" });
           setCouponApplied(false);
         } else {
-  setCoupon({
-    id: data.id,
-    coupon_code: data.coupon_code,
-    discount_percentage: data.discount_percentage || data.discount_p || 0,
-    discount_amount: data.discount_amount || 0,
-    source: "MANUAL_ENTRY"
-  });
-  const discountPct = data.discount_percentage || data.discount_p || 0;
-  setCouponDiscount(discountPct);
-  setCouponApplied(true);
-  const msg = data.discount_amount && data.discount_amount > 0
-    ? `Coupon applied! ₹${data.discount_amount} off`
-    : `Coupon applied! ${discountPct}% off`;
-  setCouponStatus({ type: "success", message: msg });
+          setCoupon({
+            id: data.id,
+            coupon_code: data.coupon_code,
+            discount_percentage: data.discount_percentage || data.discount_p || 0,
+            discount_amount: data.discount_amount || 0,
+            source: "MANUAL_ENTRY"
+          });
+          const discountPct = data.discount_percentage || data.discount_p || 0;
+          setCouponDiscount(discountPct);
+          setCouponApplied(true);
+          const msg = data.discount_amount && data.discount_amount > 0
+            ? `Coupon applied! ₹${data.discount_amount} off`
+            : `Coupon applied! ${discountPct}% off`;
+          setCouponStatus({ type: "success", message: msg });
 
-  // 🧹 Discard any stale banner claim so it doesn't leak into the booking
-  await clearClaimedOffer();
-}
+          // 🧹 Discard any stale banner claim so it doesn't leak into the booking
+          await clearClaimedOffer();
+        }
       }
     } catch (err) {
       console.error("Coupon verification error:", err);
@@ -3280,16 +3324,16 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
     }
   };
 
- const removeCoupon = async () => {
-  setCouponDiscount(0);
-  setCouponApplied(false);
-  setCoupon(null);
-  setManualCouponCode("");
-  setCouponStatus({ type: '', message: '' });
+  const removeCoupon = async () => {
+    setCouponDiscount(0);
+    setCouponApplied(false);
+    setCoupon(null);
+    setManualCouponCode("");
+    setCouponStatus({ type: '', message: '' });
 
-  // 🧹 Clear stale claimed offer so a removed banner coupon isn't reused later
-  await clearClaimedOffer();
-};
+    // 🧹 Clear stale claimed offer so a removed banner coupon isn't reused later
+    await clearClaimedOffer();
+  };
   /* ================= TOTALS ================= */
 
   const totalSavings = useMemo(
@@ -3327,13 +3371,10 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
     // 1. Apply Coupon Discount (Percentage or Fixed)
     if (couponApplied && coupon) {
       if (coupon.discount_amount && coupon.discount_amount > 0) {
-        // Fixed amount discount
         finalTotal = Math.max(0, baseTotal - coupon.discount_amount);
       } else if (couponDiscount > 0) {
-        // Percentage discount calculated on totalOriginalPrice if present
         const baseForDiscount = totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice;
-        const discountAmount = (baseForDiscount * couponDiscount) / 100;
-        finalTotal = Math.max(0, baseForDiscount - discountAmount + totalTax);
+        finalTotal = Math.max(0, baseForDiscount - calculatedCouponDiscountAmount + totalTax);
       }
     }
 
@@ -3357,8 +3398,7 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
         finalTotal = Math.max(0, baseTotal - coupon.discount_amount);
       } else if (couponDiscount > 0) {
         const baseForDiscount = totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice;
-        const discountAmount = (baseForDiscount * couponDiscount) / 100;
-        finalTotal = Math.max(0, baseForDiscount - discountAmount + totalTax);
+        finalTotal = Math.max(0, baseForDiscount - calculatedCouponDiscountAmount + totalTax);
       }
     }
     return Math.min(finalTotal, walletBalance);
@@ -3497,21 +3537,23 @@ if (serviceWithDiscount && Number(serviceWithDiscount.discount_percent) > 0) {
 
 
 
-let promotionalBannerId = null;
+      let promotionalBannerId = null;
+      let promotionalServiceId = null;
 
-// Only attach the banner ID if the applied coupon actually came
-// from a promotional banner. This prevents stale claimed offers
-// from leaking into unrelated bookings (e.g. manual coupon bookings).
-if (
-  couponApplied &&
-  coupon &&
-  coupon.source === "PROMOTIONAL_BANNER"
-) {
-  const claimed = await getClaimedOffer();
-  if (claimed && claimed.bannerId) {
-    promotionalBannerId = claimed.bannerId;
-  }
-}
+      // Only attach the banner ID if the applied coupon actually came
+      // from a promotional banner. This prevents stale claimed offers
+      // from leaking into unrelated bookings (e.g. manual coupon bookings).
+      if (
+        couponApplied &&
+        coupon &&
+        coupon.source === "PROMOTIONAL_BANNER"
+      ) {
+        const claimed = await getClaimedOffer();
+        if (claimed && claimed.bannerId) {
+          promotionalBannerId = claimed.bannerId;
+          promotionalServiceId = claimed.serviceId || null;
+        }
+      }
 
       const { data: bookingData, error: insertError } = await supabase
         .from("bookings")
@@ -3540,9 +3582,9 @@ if (
             coupon_discount_amount: couponApplied && coupon
               ? (coupon.discount_amount && coupon.discount_amount > 0
                 ? coupon.discount_amount
-                : Number((((totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice) * couponDiscount) / 100).toFixed(2)))
+                : calculatedCouponDiscountAmount)
               : 0,
-            
+
             promotional_banner_id: promotionalBannerId,
           }
         ])
@@ -3687,9 +3729,13 @@ if (
         console.error("WhatsApp booking sending failed (non-critical):", waBookingError);
       }
 
-      // Clear cart & session-claimed offer
+      // Clear cart, session-claimed offer & profile promo fields
       await supabase.from("cart").delete().eq("user_id", userId);
       await clearClaimedOffer();
+      await supabase
+        .from("profile")
+        .update({ promotional_banner_selected: null, service_selected: null })
+        .eq("id", userId);
 
       setIsProcessing(false);
 
@@ -3941,7 +3987,7 @@ if (
               <Text style={styles.couponSavingText}>
                 You save ₹{coupon.discount_amount && coupon.discount_amount > 0
                   ? coupon.discount_amount
-                  : (((totalOriginalPrice > 0 ? totalOriginalPrice : totalPrice) * (coupon.discount_percentage || 0)) / 100).toFixed(2)} with this coupon!
+                  : calculatedCouponDiscountAmount.toFixed(2)} with this coupon!
               </Text>
             ) : null}
           </View>
@@ -3978,12 +4024,12 @@ if (
           <Text style={[styles.sectionHeading, { color: theme.text }]}>{t("checkout.serviceAddress")}</Text>
 
           <View style={[styles.card, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            
+
             {/* ✅ Customer Details */}
             <View style={{ marginBottom: 16, paddingHorizontal: 16, paddingTop: 16 }}>
               <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Name</Text>
               <Text style={{ fontSize: 16, color: theme.text, fontWeight: '500', marginBottom: 12 }}>{profile?.full_name || "N/A"}</Text>
-              
+
               <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Phone Number</Text>
               <Text style={{ fontSize: 16, color: theme.text, fontWeight: '500', marginBottom: 12 }}>{profile?.phone || "N/A"}</Text>
 
@@ -4014,72 +4060,105 @@ if (
 
             {/* Address Box */}
             <View style={[styles.addressSection, { backgroundColor: theme.background, borderColor: theme.border, borderTopWidth: 0 }]}>
-              {/* ✅ SELECTED ADDRESS CARD */}
-              {isAddressSummaryMode && hasUsedLocationFetch ? (
-                <View style={[styles.summaryCard, { backgroundColor: theme.surfaceVariant }]}>
-                  <View style={styles.summaryContent}>
-                    <Pressable
-                      style={[styles.locationIconCircle, { backgroundColor: theme.background, borderColor: theme.border }]}
-                      onPress={handleViewOnMap}
-                    >
-                      <Ionicons name="location" size={20} color={theme.text} />
-                    </Pressable>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.summaryTitle, { color: theme.textLight }]}>Selected Location</Text>
-                      <Text style={[styles.summaryText, { color: theme.text }]}>
-                        {`${manualAddress}${pincode ? " - " + pincode : ""}`}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[styles.editButton, { backgroundColor: theme.background, borderColor: theme.border }]}
-                      onPress={() => setIsAddressSummaryMode(false)}
-                    >
-                      <Ionicons name="create-outline" size={18} color={theme.text} />
-                      <Text style={[styles.editButtonText, { color: theme.text }]}>Edit</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <View style={{ padding: 16 }}>
-                  <Text style={[styles.label, { color: theme.text }]}>{t("checkout.fullAddress")}</Text>
-                  <TextInput
-                    style={[styles.input, { height: 100, textAlignVertical: 'top', paddingTop: 12, backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
-                    value={manualAddress}
-                    onChangeText={setManualAddress}
-                    placeholder="Plot No, Flat No, Building Name, Area, City"
-                    placeholderTextColor={theme.textLight}
-                    multiline
-                    numberOfLines={4}
-                  />
-
-                  <Text style={[styles.label, { color: theme.text }]}>{t("checkout.pincode")}</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
-                    value={pincode}
-                    onChangeText={(text) => {
-                      const onlyDigits = text.replace(/\D/g, "");
-                      setPincode(onlyDigits);
-                    }}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    placeholder="500090"
-                    placeholderTextColor={theme.textLight}
-                  />
-
-                  {hasUsedLocationFetch && (
-                    <Pressable
-                      style={styles.doneButton}
-                      onPress={async () => {
-                        setIsAddressSummaryMode(true);
-                        handleManualGeocode(`${manualAddress}, ${pincode}`);
-                      }}
-                    >
-                      <Ionicons name="checkmark-done" size={18} color="#fff" />
-                      <Text style={styles.doneButtonText}>Done Editing</Text>
-                    </Pressable>
-                  )}
+              {/* ✅ SELECTED SERVICE AREA CONTEXT (IF ANY) */}
+              {serviceAreaContext && (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                  <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Service Area Context</Text>
+                  <Text style={{ fontSize: 16, color: theme.text, fontWeight: '600' }}>{serviceAreaContext.name}</Text>
+                  <Text style={{ fontSize: 14, color: theme.text }}>Pincode: {serviceAreaContext.pincode}</Text>
                 </View>
               )}
+
+              {/* ✅ SELECTED ADDRESS CARD */}
+              <View style={[styles.summaryCard, { backgroundColor: theme.surfaceVariant, marginHorizontal: 16, marginBottom: 16 }]}>
+                <View style={styles.summaryContent}>
+                  <Pressable
+                    style={[styles.locationIconCircle, { backgroundColor: theme.background, borderColor: theme.border }]}
+                    onPress={handleViewOnMap}
+                  >
+                    <Ionicons name="location" size={20} color={theme.text} />
+                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.summaryTitle, { color: theme.textLight }]}>{t("checkout.serviceAddress")}</Text>
+                    <Text style={[styles.summaryText, { color: theme.text }]}>
+                      {manualAddress || pincode ? `${manualAddress}${pincode ? " - " + pincode : ""}` : "No address provided"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={[styles.editButton, { backgroundColor: theme.background, borderColor: theme.border }]}
+                    onPress={() => setIsAddressSummaryMode(false)}
+                  >
+                    <Ionicons name="create-outline" size={18} color={theme.text} />
+                    <Text style={[styles.editButtonText, { color: theme.text }]}>{manualAddress || pincode ? "Edit" : "Add"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* ADDRESS EDIT MODAL POPUP */}
+              <Modal visible={!isAddressSummaryMode} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setIsAddressSummaryMode(true)}>
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}>
+                  <View style={{ width: '90%', padding: 20, borderRadius: 16, backgroundColor: theme.background }}>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, marginBottom: 15 }}>{t("checkout.serviceAddress")}</Text>
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t("checkout.fullAddress")}</Text>
+                    <TextInput
+                      style={[styles.input, { height: 100, textAlignVertical: 'top', paddingTop: 12, backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                      value={manualAddress}
+                      onChangeText={setManualAddress}
+                      placeholder="Plot No, Flat No, Building Name, Area, City"
+                      placeholderTextColor={theme.textLight}
+                      multiline
+                      numberOfLines={4}
+                    />
+
+                    <Text style={[styles.label, { color: theme.text, marginTop: 15 }]}>{t("checkout.pincode")}</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                      value={pincode}
+                      onChangeText={(text) => {
+                        const onlyDigits = text.replace(/\D/g, "");
+                        setPincode(onlyDigits);
+                      }}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      placeholder="500090"
+                      placeholderTextColor={theme.textLight}
+                    />
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 }}>
+                      <Pressable onPress={fetchCurrentLocation} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        {fetchingLocation ? (
+                          <ActivityIndicator size="small" color={theme.primary} />
+                        ) : (
+                          <Ionicons name="location" size={18} color={theme.primary} />
+                        )}
+                        <Text style={{ color: theme.primary, fontWeight: '600' }}>
+                          {fetchingLocation ? "Fetching..." : t("checkout.useLocation")}
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 25, gap: 12 }}>
+                      <Pressable
+                        style={{ padding: 12, borderRadius: 8, justifyContent: 'center' }}
+                        onPress={() => setIsAddressSummaryMode(true)}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: "600" }}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        style={{ backgroundColor: theme.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 }}
+                        onPress={async () => {
+                          setIsAddressSummaryMode(true);
+                          setHasUsedLocationFetch(true);
+                          handleManualGeocode(`${manualAddress}, ${pincode}`);
+                        }}
+                      >
+                        <Text style={{ color: '#000', fontWeight: '700' }}>Save Address</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              </Modal>
             </View>
 
             {/* ✅ FULL WIDTH PINCODE STATUS BADGE */}

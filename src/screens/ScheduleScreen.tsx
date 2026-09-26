@@ -395,6 +395,7 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [serviceAreaContext, setServiceAreaContext] = useState<{name: string, pincode: string} | null>(null);
   const [manualAddress, setManualAddress] = useState("");
   const [pincode, setPincode] = useState("");
   const [bookingLatitude, setBookingLatitude] = useState<number | null>(null);
@@ -402,6 +403,91 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [isAddressSummaryMode, setIsAddressSummaryMode] = useState(false);
   const [hasUsedLocationFetch, setHasUsedLocationFetch] = useState(false);
+
+  // Saved Addresses
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  const fetchSavedAddresses = useCallback(async (uid: string) => {
+    setLoadingAddresses(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_addresses")
+        .select("*")
+        .eq("user_id", uid);
+      if (error) {
+        console.error("Error fetching saved addresses:", error);
+      } else {
+        setSavedAddresses(data || []);
+      }
+    } catch (e) {
+      console.error("Error in fetchSavedAddresses:", e);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) {
+        fetchSavedAddresses(userId);
+      }
+    }, [userId, fetchSavedAddresses])
+  );
+
+  const handleSelectAddress = (address: any) => {
+    setSelectedAddressId(address.id);
+    const full = address.full_address || "";
+    const match = full.match(/\b\d{6}\b/);
+    const extractedPincode = address.pincode || (match ? match[0] : "");
+    
+    setPincode(extractedPincode);
+    setManualAddress(full);
+    setBookingLatitude(address.latitude);
+    setBookingLongitude(address.longitude);
+  };
+
+  // Editing Saved Address
+  const [editingAddress, setEditingAddress] = useState<any>(null);
+  const [editHouseNo, setEditHouseNo] = useState("");
+  const [editLandmark, setEditLandmark] = useState("");
+  const [editFullAddress, setEditFullAddress] = useState("");
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+
+  const openEditAddress = (addr: any) => {
+    setEditingAddress(addr);
+    setEditHouseNo(addr.house_no || "");
+    setEditLandmark(addr.landmark || "");
+    setEditFullAddress(addr.full_address || "");
+  };
+
+  const handleUpdateAddress = async () => {
+    if (!editingAddress || !userId) return;
+    setIsSavingAddress(true);
+    try {
+      const { error } = await supabase
+        .from('user_addresses')
+        .update({
+          house_no: editHouseNo.trim(),
+          landmark: editLandmark.trim(),
+          full_address: editFullAddress.trim()
+        })
+        .eq('id', editingAddress.id);
+        
+      if (!error) {
+        setEditingAddress(null);
+        fetchSavedAddresses(userId);
+      } else {
+        setAlertConfig({ title: "Error", message: "Could not update address", type: "error" });
+        setShowAlertModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
 
   // Pincode Verification State
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean>(false);
@@ -478,55 +564,7 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
     }
   };
 
-  // Pincode Serviceability Check
-  const checkPincodeServiceable = async (pin: string) => {
-    console.log(`[SERVICEABILITY STEP 2] Pincode received: ${pin}`);
-    const cleanedPin = pin.trim();
-
-    if (cleanedPin.length !== 6) {
-      setIsPincodeServiceable(false);
-      setIsPincodeInArea(false);
-      return;
-    }
-
-    try {
-      setCheckingPincode(true);
-      console.log(`[SERVICEABILITY STEP 2] Checking hub_locations:`);
-
-      const { data, error } = await supabase
-        .from("hub_locations")
-        .select("id, hub_name, pincode, is_active")
-        .eq("pincode", cleanedPin)
-        .eq("is_active", true)
-        .limit(1);
-
-      if (error) {
-        console.log(`[SERVICEABILITY STEP 2] Final: NOT_AVAILABLE`);
-        setIsPincodeServiceable(false);
-        setIsPincodeInArea(false);
-        return;
-      }
-
-      const available = Array.isArray(data) && data.length > 0;
-      setIsPincodeServiceable(available);
-      setIsPincodeInArea(available);
-
-      console.log(`[SERVICEABILITY STEP 2] Matching rows: ${data ? data.length : 0}`);
-      console.log(`[SERVICEABILITY STEP 2] Matching hub: ${available ? data[0].hub_name : 'null'}`);
-      console.log(`[SERVICEABILITY STEP 2] Final: ${available ? 'AVAILABLE' : 'NOT_AVAILABLE'}`);
-
-    } catch (err: any) {
-      console.log(`[SERVICEABILITY STEP 2] Final: NOT_AVAILABLE`);
-      setIsPincodeServiceable(false);
-      setIsPincodeInArea(false);
-    } finally {
-      setCheckingPincode(false);
-    }
-  };
-
-  useEffect(() => {
-    checkPincodeServiceable(pincode);
-  }, [pincode]);
+  // Pincode Serviceability Check moved below to use resolveHubFromLocation
 
   // Load Profile from Supabase
   const loadProfile = useCallback(async () => {
@@ -554,17 +592,21 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
       };
       setProfile(cleanedProfile);
 
-      const cachedLoc = await LocationService.getSelectedLocation();
-      const freshPin = cachedLoc?.postalCode || "";
-
-      setPincode(freshPin);
-      setManualAddress(cachedLoc?.fullAddress || "");
-      if (cachedLoc) {
-        setBookingLatitude(cachedLoc.latitude);
-        setBookingLongitude(cachedLoc.longitude);
+      const selectedServiceArea = await LocationService.getSelectedServiceArea();
+      
+      if (selectedServiceArea && selectedServiceArea.isServiceable) {
+        setServiceAreaContext({ name: selectedServiceArea.name, pincode: selectedServiceArea.pincode });
+      } else {
+        setServiceAreaContext(null);
       }
-      setIsAddressSummaryMode(true);
-      setHasUsedLocationFetch(true);
+
+      // DO NOT auto-populate customer's actual address from GPS or Service Area
+      setPincode("");
+      setManualAddress("");
+      setBookingLatitude(null);
+      setBookingLongitude(null);
+      setIsAddressSummaryMode(true); // Default to showing summary mode (which says "Add Address" because it's empty)
+      setHasUsedLocationFetch(false);
     } else {
       setIsAddressSummaryMode(false);
     }
@@ -957,19 +999,74 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
   // Fetch hub-based staff capacity for selected service category & user location hub
   const [selectedHubName, setSelectedHubName] = useState<string>("");
 
-  useEffect(() => {
-    const updateCategoryServiceability = async () => {
-      // We only resolve the hub name for contextual use if needed.
-      // We explicitly DO NOT override isPincodeServiceable based on category capacity, 
-      // ensuring availability is purely location-based.
-      if (selectedServices && selectedServices.length > 0) {
-        const { hubName } = await resolveHubFromLocation(pincode, manualAddress);
-        setSelectedHubName(hubName || "");
-      }
-    };
+  const checkRequestId = useRef(0);
 
-    updateCategoryServiceability();
-  }, [selectedServices, pincode, manualAddress, resolveHubFromLocation]);
+  const checkPincodeServiceable = useCallback(async (pin: string, addressStr: string = "") => {
+    console.log(`[Serviceability] Pincode received: ${pin}, Address: ${addressStr}`);
+    const cleanedPin = String(pin || "").trim().slice(0, 6);
+    
+    checkRequestId.current += 1;
+    const currentRequestId = checkRequestId.current;
+
+    if (cleanedPin.length !== 6) {
+      setIsPincodeServiceable(false);
+      setIsPincodeInArea(false);
+      setIsHubCapacityAvailable(true);
+      return;
+    }
+
+    try {
+      setCheckingPincode(true);
+      
+      const { hubName, isActive } = await resolveHubFromLocation(cleanedPin, addressStr);
+      if (currentRequestId !== checkRequestId.current) return;
+
+      console.log(`[Serviceability] Resolved hub: ${hubName}, Active: ${isActive}`);
+      setSelectedHubName(hubName || "");
+      
+      if (!hubName || !isActive) {
+        console.log(`[Serviceability] Final result: NOT_AVAILABLE (No active hub)`);
+        setIsPincodeServiceable(false);
+        setIsPincodeInArea(false);
+        setIsHubCapacityAvailable(false);
+        setCategoryStaffCount(0);
+        return;
+      }
+      
+      setIsPincodeInArea(true);
+      
+      const staffCount = await fetchHubCategoryStaffCount(hubName, selectedServices);
+      if (currentRequestId !== checkRequestId.current) return;
+
+      console.log(`[Serviceability] Staff count: ${staffCount} for hub ${hubName}`);
+      setCategoryStaffCount(staffCount);
+      
+      if (staffCount > 0) {
+        setIsPincodeServiceable(true);
+        setIsHubCapacityAvailable(true);
+        console.log(`[Serviceability] Final result: AVAILABLE`);
+      } else {
+        setIsPincodeServiceable(false);
+        setIsHubCapacityAvailable(false);
+        console.log(`[Serviceability] Final result: NOT_AVAILABLE (No staff)`);
+      }
+
+    } catch (err: any) {
+      if (currentRequestId !== checkRequestId.current) return;
+      console.error(`[Serviceability] Error:`, err);
+      setIsPincodeServiceable(false);
+      setIsPincodeInArea(false);
+      setIsHubCapacityAvailable(false);
+    } finally {
+      if (currentRequestId === checkRequestId.current) {
+        setCheckingPincode(false);
+      }
+    }
+  }, [resolveHubFromLocation, fetchHubCategoryStaffCount, selectedServices]);
+
+  useEffect(() => {
+    checkPincodeServiceable(pincode, manualAddress);
+  }, [pincode, manualAddress, checkPincodeServiceable]);
 
   // Compute total service duration in minutes
   const totalDurationMinutes = useMemo(() => {
@@ -1391,101 +1488,190 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
 
           {/* Address Inputs */}
           <View style={{ marginTop: 8 }}>
-            <View style={[styles.addressSection, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              {/* SMART ADDRESS CARD */}
-              {/* SMART ADDRESS CARD */}
-              <View style={[styles.summaryCard, { backgroundColor: theme.surfaceVariant }]}>
-                <View style={styles.summaryContent}>
-                  <Pressable
-                    style={[styles.locationIconCircle, { backgroundColor: theme.background, borderColor: theme.border }]}
-                    onPress={handleViewOnMap}
-                  >
-                    <Ionicons name="location" size={20} color={theme.text} />
-                  </Pressable>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.summaryTitle, { color: theme.textLight }]}>Selected Location</Text>
-                    <Text style={[styles.summaryText, { color: theme.text }]}>
-                      {manualAddress || pincode ? `${manualAddress}${pincode ? " - " + pincode : ""}` : "No Address Provided"}
-                    </Text>
+            <View style={[styles.addressSection, { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 0, padding: 0 }]}>
+              {/* ✅ SELECTED SERVICE AREA CONTEXT (IF ANY) */}
+              {serviceAreaContext && (
+                <View style={{ paddingBottom: 16 }}>
+                  <Text style={{ fontSize: 12, color: theme.textLight, marginBottom: 4 }}>Selected Service Location:</Text>
+                  <Text style={{ fontSize: 16, color: theme.text, fontWeight: '600' }}>{serviceAreaContext.name} • {serviceAreaContext.pincode}</Text>
+                </View>
+              )}
+
+              <Text style={{ fontSize: 14, color: theme.textLight, marginBottom: 12 }}>Select an address for this service</Text>
+
+              {/* SAVED ADDRESSES */}
+              {loadingAddresses ? (
+                <View style={{ padding: 20, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 }}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text style={{ color: theme.textLight }}>Loading saved addresses...</Text>
+                </View>
+              ) : (
+                <>
+                  {savedAddresses.length === 0 ? (
+                    <View style={{ paddingVertical: 24, alignItems: 'center', backgroundColor: theme.surfaceVariant, borderRadius: 12 }}>
+                      <Text style={{ color: theme.textLight, fontSize: 16, marginBottom: 8 }}>No saved addresses yet.</Text>
+                      <Text style={{ color: theme.textLight, fontSize: 14, marginBottom: 16 }}>Add your service address to continue.</Text>
+                      <Pressable
+                        style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: theme.primary }}
+                        onPress={() => navigation.navigate("LocationSearch")}
+                      >
+                        <Ionicons name="add" size={20} color={theme.primary} />
+                        <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 14 }}>Add New Address</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    savedAddresses.map(addr => (
+                      <Pressable 
+                        key={addr.id}
+                        style={[styles.summaryCard, { 
+                          backgroundColor: selectedAddressId === addr.id ? (isDark ? 'rgba(22, 163, 74, 0.15)' : '#F0FDF4') : theme.surfaceVariant, 
+                          marginBottom: 12, 
+                          borderWidth: 2, 
+                          borderColor: selectedAddressId === addr.id ? theme.primary : 'transparent',
+                          borderRadius: 12,
+                          padding: 16
+                        }]}
+                        onPress={() => handleSelectAddress(addr)}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View style={{ flex: 1, paddingRight: 12 }}>
+                            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>
+                              {addr.tag || "Address"}
+                            </Text>
+                            <Text style={{ color: theme.text, marginTop: 6, fontSize: 14, lineHeight: 20 }}>
+                              {addr.full_address}
+                            </Text>
+                            {addr.pincode ? (
+                              <Text style={{ color: theme.text, marginTop: 6, fontSize: 14, fontWeight: '500' }}>
+                                Pincode: {addr.pincode}
+                              </Text>
+                            ) : null}
+                          </View>
+                          
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Pressable 
+                              onPress={(e) => { e.stopPropagation(); openEditAddress(addr); }}
+                              style={{ padding: 4 }}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons name="create-outline" size={20} color={theme.textLight} />
+                            </Pressable>
+                            
+                            <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: selectedAddressId === addr.id ? theme.primary : theme.border, alignItems: 'center', justifyContent: 'center' }}>
+                              {selectedAddressId === addr.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.primary }} />}
+                            </View>
+                          </View>
+                        </View>
+                      </Pressable>
+                    ))
+                  )}
+                  
+                  {savedAddresses.length > 0 && (
+                    <Pressable
+                      style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 12 }}
+                      onPress={() => navigation.navigate("LocationSearch")}
+                    >
+                      <Ionicons name="add" size={20} color={theme.primary} />
+                      <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 15 }}>Add New Address</Text>
+                    </Pressable>
+                  )}
+                </>
+              )}
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.border }} />
+              <Text style={{ color: theme.textLight, marginHorizontal: 12, fontSize: 12, fontWeight: '600' }}>OR</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.border }} />
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+              <Pressable onPress={fetchCurrentLocation} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 20, backgroundColor: theme.surfaceVariant, borderRadius: 8, borderWidth: 1, borderColor: theme.border }}>
+                {fetchingLocation ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Ionicons name="location" size={18} color={theme.primary} />
+                )}
+                <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 14 }}>
+                  {fetchingLocation ? "Fetching..." : t("checkout.useLocation")}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* EDIT ADDRESS MODAL */}
+            <Modal visible={!!editingAddress} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setEditingAddress(null)}>
+              <View style={styles.pickerOverlay}>
+                <View style={[styles.pickerModal, { width: '90%', maxHeight: '80%', padding: 20, backgroundColor: theme.background }]}>
+                  <Text style={[styles.addTitle, { color: theme.text, marginBottom: 15 }]}>Edit Address</Text>
+
+                  <Text style={[styles.label, { color: theme.text }]}>House / Flat No</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                    value={editHouseNo}
+                    onChangeText={setEditHouseNo}
+                    placeholder="e.g. Flat 101"
+                    placeholderTextColor={theme.textLight}
+                  />
+
+                  <Text style={[styles.label, { color: theme.text, marginTop: 15 }]}>Landmark</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                    value={editLandmark}
+                    onChangeText={setEditLandmark}
+                    placeholder="e.g. Near Apollo Hospital"
+                    placeholderTextColor={theme.textLight}
+                  />
+
+                  <Text style={[styles.label, { color: theme.text, marginTop: 15 }]}>{t("checkout.fullAddress")}</Text>
+                  <TextInput
+                    style={[styles.input, { height: 100, textAlignVertical: 'top', paddingTop: 12, backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                    value={editFullAddress}
+                    onChangeText={setEditFullAddress}
+                    placeholder="Full Address"
+                    placeholderTextColor={theme.textLight}
+                    multiline
+                    numberOfLines={4}
+                  />
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 25, gap: 12 }}>
+                    <Pressable
+                      style={{ padding: 12, borderRadius: 8, justifyContent: 'center' }}
+                      onPress={() => setEditingAddress(null)}
+                    >
+                      <Text style={{ color: theme.text, fontWeight: "600" }}>Cancel</Text>
+                    </Pressable>
+                    
+                    <Pressable
+                      style={{ backgroundColor: theme.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={handleUpdateAddress}
+                      disabled={isSavingAddress}
+                    >
+                      {isSavingAddress ? <ActivityIndicator size="small" color="#000" style={{ marginRight: 8 }} /> : null}
+                      <Text style={{ color: '#000', fontWeight: '700' }}>Save</Text>
+                    </Pressable>
                   </View>
-                  <Pressable
-                    style={[styles.editButton, { backgroundColor: theme.background, borderColor: theme.border }]}
-                    onPress={() => setIsAddressSummaryMode(false)}
-                  >
-                    <Ionicons name="create-outline" size={18} color={theme.text} />
-                    <Text style={[styles.editButtonText, { color: theme.text }]}>{manualAddress || pincode ? "Edit" : "Add"}</Text>
-                  </Pressable>
                 </View>
               </View>
+            </Modal>
 
-              {/* ADDRESS EDIT MODAL POPUP */}
-              <Modal visible={!isAddressSummaryMode} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setIsAddressSummaryMode(true)}>
-                <View style={styles.pickerOverlay}>
-                  <View style={[styles.pickerModal, { width: '90%', maxHeight: '80%', padding: 20, backgroundColor: theme.background }]}>
-                    <Text style={[styles.addTitle, { color: theme.text, marginBottom: 15 }]}>{t("checkout.serviceAddress")}</Text>
-
-                    <Text style={[styles.label, { color: theme.text }]}>{t("checkout.fullAddress")}</Text>
-                    <TextInput
-                      style={[styles.input, { height: 100, textAlignVertical: 'top', paddingTop: 12, backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
-                      value={manualAddress}
-                      onChangeText={setManualAddress}
-                      placeholder="Plot No, Flat No, Building Name, Area, City"
-                      placeholderTextColor={theme.textLight}
-                      multiline
-                      numberOfLines={4}
-                    />
-
-                    <Text style={[styles.label, { color: theme.text, marginTop: 15 }]}>{t("checkout.pincode")}</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
-                      value={pincode}
-                      onChangeText={(text) => {
-                        const onlyDigits = text.replace(/\D/g, "");
-                        setPincode(onlyDigits);
-                      }}
-                      keyboardType="numeric"
-                      maxLength={6}
-                      placeholder="500090"
-                      placeholderTextColor={theme.textLight}
-                    />
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 }}>
-                      <Pressable onPress={fetchCurrentLocation} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        {fetchingLocation ? (
-                          <ActivityIndicator size="small" color={theme.primary} />
-                        ) : (
-                          <Ionicons name="location" size={18} color={theme.primary} />
-                        )}
-                        <Text style={{ color: theme.primary, fontWeight: '600' }}>
-                          {fetchingLocation ? "Fetching..." : t("checkout.useLocation")}
-                        </Text>
-                      </Pressable>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 25, gap: 12 }}>
-                      {hasUsedLocationFetch && (
-                        <Pressable
-                          style={{ padding: 12, borderRadius: 8, justifyContent: 'center' }}
-                          onPress={() => setIsAddressSummaryMode(true)}
-                        >
-                          <Text style={{ color: theme.text, fontWeight: "600" }}>Cancel</Text>
-                        </Pressable>
-                      )}
-                      <Pressable
-                        style={{ backgroundColor: theme.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 }}
-                        onPress={async () => {
-                          setIsAddressSummaryMode(true);
-                          setHasUsedLocationFetch(true);
-                          handleManualGeocode(`${manualAddress}, ${pincode}`);
-                        }}
-                      >
-                        <Text style={{ color: '#000', fontWeight: '700' }}>Save Address</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
-            </View>
+            {/* CONFIRM PINCODE INPUT */}
+            {selectedAddressId && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={[styles.label, { color: theme.text, marginBottom: 8 }]}>Confirm Pincode for Serviceability</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, color: theme.text }]}
+                  value={pincode}
+                  onChangeText={(text) => {
+                    const onlyDigits = text.replace(/\D/g, "");
+                    setPincode(onlyDigits);
+                  }}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  placeholder="e.g. 500081"
+                  placeholderTextColor={theme.textLight}
+                />
+              </View>
+            )}
 
             {/* PINCODE STATUS BADGE */}
             {pincode.length === 6 && (
@@ -1532,9 +1718,7 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
                       ? t("checkout.checking")
                       : isPincodeServiceable
                         ? t("checkout.serviceAvailable")
-                        : isPincodeInArea
-                          ? "No Partners Available Right Now"
-                          : t("checkout.serviceNotAvailable")}
+                        : t("checkout.serviceNotAvailable")}
                   </Text>
 
                   {!checkingPincode && (
@@ -1542,7 +1726,7 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
                       {isPincodeServiceable
                         ? "You can continue with booking."
                         : isPincodeInArea
-                          ? "Tap for Emergency Booking (+91 7617618567)"
+                          ? "This service is currently unavailable in your area."
                           : "We will be available soon in your area."}
                     </Text>
                   )}
@@ -1738,6 +1922,10 @@ export default function ScheduleScreen({ route }: ScheduleScreenProps) {
             navigation.navigate("Checkout", {
               services: selectedServices,
               bookingDateText,
+              manualAddress: manualAddress.trim(),
+              pincode: pincode.trim(),
+              bookingLatitude,
+              bookingLongitude,
             });
           }}
         >

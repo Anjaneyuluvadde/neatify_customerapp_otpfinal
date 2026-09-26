@@ -8,6 +8,8 @@ export type ClaimedOffer = {
   offerPercentage: number;
   offerPrice?: number | null;
   claimedAt: string;
+  userId?: string | null;
+  source?: string | null;
 };
 
 const CLAIMED_OFFER_KEY = "claimedOffer";

@@ -5936,6 +5936,7 @@ import { Image } from "expo-image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Clipboard,
   Dimensions,
   FlatList,
@@ -6220,31 +6221,94 @@ export default function HomeScreen({ navigation }: any) {
       }
 
       if (session?.user) {
-        // Check for specific banner reuse
-        // Check for specific banner reuse:
-        // Blocked if any PAID booking exists with this banner that is NOT cancelled/failed.
-        const { data: existingRows, error: existingErr } = await supabase
-          .from("bookings")
-          .select("id, work_status, payment_status, payment_verified")
-          .eq("user_id", session.user.id)
-          .eq("promotional_banner_id", banner.id);
+        // 1. Check if user already selected a service for this banner
+        const { data: userProfile } = await supabase
+          .from("profile")
+          .select("service_selected, promotional_banner_selected")
+          .eq("id", session.user.id)
+          .maybeSingle();
 
-        if (existingErr) {
-          console.error("[PROMO] reuse check error:", existingErr);
-        }
+        const isSameBanner = userProfile?.promotional_banner_selected === banner.id;
+        const hasSelectedService = !!userProfile?.service_selected;
 
-        const isAlreadyUsed = (existingRows || []).some((row: any) => {
-          const ps = String(row.payment_status || "").trim().toLowerCase();
-          const ws = String(row.work_status || "").trim().toUpperCase();
-          const paid = row.payment_verified === true && ps === "paid";
-          const isCancelled = ws === "CANCELLED";
-          const isFailed = ws === "PAYMENT FAILED";
-          return paid && !isCancelled && !isFailed;
-        });
+        if (isSameBanner && hasSelectedService) {
+          // Check if this specific selected booking is COMPLETED
+          const { data: promoBookings } = await supabase
+            .from("bookings")
+            .select("id, services, promotional_banner_id, work_status")
+            .eq("user_id", session.user.id)
+            .eq("promotional_banner_id", banner.id)
+            .eq("work_status", "COMPLETED");
 
-        if (isAlreadyUsed) {
-          showToast("This offer has already been used.", "info");
-          return;
+          let hasCompletedSelectedService = false;
+          if (promoBookings && promoBookings.length > 0) {
+            for (const booking of promoBookings) {
+              let bServices = booking.services;
+              if (typeof bServices === "string") {
+                try {
+                  bServices = JSON.parse(bServices);
+                } catch {
+                  bServices = [];
+                }
+              }
+              if (Array.isArray(bServices)) {
+                if (bServices.some((s: any) => s.id === userProfile.service_selected)) {
+                  hasCompletedSelectedService = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (hasCompletedSelectedService) {
+            showToast("This offer has already been used.", "info");
+            return;
+          }
+
+          // Active / Not completed case -> Fetch selected service
+          const { data: selectedService } = await supabase
+            .from("services")
+            .select("id, title")
+            .eq("id", userProfile.service_selected)
+            .maybeSingle();
+
+          if (selectedService) {
+            // Restore claimedOffer to ensure discount applies even if local storage was cleared
+            const claimObject = {
+              type: "PROMOTIONAL_BANNER",
+              bannerId: banner.id,
+              serviceId: selectedService.id,
+              serviceTitle: selectedService.title,
+              offerPercentage: banner.offer_percentage ?? 0,
+              claimedAt: new Date().toISOString(),
+              userId: session.user.id,
+              source: "promotional_banner",
+            };
+            await setClaimedOffer(claimObject);
+
+            Alert.alert(
+              "Offer Already Selected",
+              `You have already selected ${selectedService.title} for this offer.`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "View Service",
+                  onPress: () => navigation.navigate("ServiceDetail", { serviceId: selectedService.id })
+                }
+              ]
+            );
+            return;
+          } else {
+            // Service missing/deleted, clear invalid selection
+            await supabase
+              .from("profile")
+              .update({ service_selected: null, promotional_banner_selected: null })
+              .eq("id", session.user.id);
+          }
+        } else {
+          // Different banner or no selection
+          // Allow the flow to continue to the service selection modal
+          // The specific service check will be performed in handleSelectedServiceClaim
         }
 
         // Check for NEW_USER eligibility if banner is for new users
@@ -6356,13 +6420,17 @@ export default function HomeScreen({ navigation }: any) {
         }
       }
 
-      if (banner.service_scope === "selected") {
-        setActivePromoBanner(banner);
-        setLoadingPromoServices(true);
-        setShowServiceSelectModal(true);
-        setSelectedPromoServiceId(null);
+      // ALWAYS require service selection for promotional banners
+      setActivePromoBanner(banner);
+      setLoadingPromoServices(true);
+      setShowServiceSelectModal(true);
+      setSelectedPromoServiceId(null);
 
-        console.log("[PROMO] Fetching services for banner:", banner.id);
+      console.log("[PROMO] Fetching services for banner:", banner.id);
+      
+      let svcData = null;
+
+      if (banner.service_scope === "selected") {
         const { data: svcRels } = await supabase
           .from("promotional_banner_services")
           .select("service_id")
@@ -6371,36 +6439,28 @@ export default function HomeScreen({ navigation }: any) {
         if (svcRels && svcRels.length > 0) {
           const serviceIds = svcRels.map(r => r.service_id);
           console.log("[PROMO] Promotional service IDs:", serviceIds);
-          const { data: svcData } = await supabase
+          const { data: fetchedSvcData } = await supabase
             .from("services")
             .select("id, title")
             .in("id", serviceIds);
-
-          if (svcData) {
-            console.log("[PROMO] Services displayed:", svcData);
-            setPromoBannerServices(svcData);
-          }
+          svcData = fetchedSvcData;
         }
-        setLoadingPromoServices(false);
       } else {
-        const claimType = banner.customer_type === "new" ? "NEW_USER" : "PROMOTIONAL_BANNER";
-        console.log("[COUPON STEP 8] Banner customer_type:", banner.customer_type);
-        console.log("[COUPON STEP 8] Claim type:", claimType);
-        console.log("[COUPON STEP 8] Offer percentage:", banner.offer_percentage);
-
-        const claimObject: any = {
-          type: claimType,
-          bannerId: banner.id,
-          offerPercentage: banner.offer_percentage,
-          claimedAt: new Date().toISOString(),
-        };
-        console.log("[PROMO] Final claim:", claimObject);
-        await setClaimedOffer(claimObject);
-        console.log("[COUPON STEP 8] Applying promotional banner:", claimObject);
-        console.log("[COUPON STEP 3] New user claim created:", claimObject);
-        console.log("[COUPON STEP 3] New claim type:", claimObject.type);
-        showToast(`Offer Claimed! ${banner.offer_percentage}% discount is ready for your booking.`, "success");
+        // Fetch all services if scope is not 'selected'
+        const { data: fetchedSvcData } = await supabase
+          .from("services")
+          .select("id, title");
+        svcData = fetchedSvcData;
       }
+
+      if (svcData) {
+        console.log("[PROMO] Services displayed:", svcData);
+        setPromoBannerServices(svcData);
+      } else {
+        setPromoBannerServices([]);
+      }
+      
+      setLoadingPromoServices(false);
     } catch (e) {
       console.error("Error claiming banner offer:", e);
       showToast("Failed to claim offer. Please try again.", "error");
@@ -6435,25 +6495,37 @@ export default function HomeScreen({ navigation }: any) {
 
 
       if (session?.user) {
-        // Same reuse rule as handleBannerPress
-        const { data: existingRows, error: existingErr } = await supabase
+        // Check if this specific selected booking is COMPLETED
+        const { data: promoBookings, error: existingErr } = await supabase
           .from("bookings")
-          .select("id, work_status, payment_status, payment_verified")
+          .select("id, services, promotional_banner_id, work_status")
           .eq("user_id", session.user.id)
-          .eq("promotional_banner_id", activePromoBanner.id);
+          .eq("promotional_banner_id", activePromoBanner.id)
+          .eq("work_status", "COMPLETED");
 
         if (existingErr) {
           console.error("[PROMO] reuse check error:", existingErr);
         }
 
-        const isAlreadyUsed = (existingRows || []).some((row: any) => {
-          const ps = String(row.payment_status || "").trim().toLowerCase();
-          const ws = String(row.work_status || "").trim().toUpperCase();
-          const paid = row.payment_verified === true && ps === "paid";
-          const isCancelled = ws === "CANCELLED";
-          const isFailed = ws === "PAYMENT FAILED";
-          return paid && !isCancelled && !isFailed;
-        });
+        let isAlreadyUsed = false;
+        if (promoBookings && promoBookings.length > 0) {
+          for (const booking of promoBookings) {
+            let bServices = booking.services;
+            if (typeof bServices === "string") {
+              try {
+                bServices = JSON.parse(bServices);
+              } catch {
+                bServices = [];
+              }
+            }
+            if (Array.isArray(bServices)) {
+              if (bServices.some((s: any) => s.id === selectedPromoServiceId)) {
+                isAlreadyUsed = true;
+                break;
+              }
+            }
+          }
+        }
 
         if (isAlreadyUsed) {
           showToast("This offer has already been used.", "info");
@@ -6514,7 +6586,8 @@ export default function HomeScreen({ navigation }: any) {
         }
       }
       console.log("[PROMO] Claiming selected service offer:", selectedSvc.title);
-      const claimType = activePromoBanner.customer_type === "new" ? "NEW_USER" : "PROMOTIONAL_BANNER";
+      // ALWAYS treat promotional banner claims as PROMOTIONAL_BANNER
+      const claimType = "PROMOTIONAL_BANNER";
       console.log("[COUPON STEP 8] Banner customer_type:", activePromoBanner.customer_type);
       console.log("[COUPON STEP 8] Claim type:", claimType);
       console.log("[COUPON STEP 8] Offer percentage:", activePromoBanner.offer_percentage);
@@ -6526,9 +6599,22 @@ export default function HomeScreen({ navigation }: any) {
         serviceTitle: selectedSvc.title,
         offerPercentage: activePromoBanner.offer_percentage ?? 0,
         claimedAt: new Date().toISOString(),
+        userId: session?.user?.id || null,
+        source: "promotional_banner",
       };
 
       await setClaimedOffer(claimObject);
+
+      if (session?.user?.id) {
+        await supabase
+          .from("profile")
+          .update({
+            promotional_banner_selected: activePromoBanner.id,
+            service_selected: selectedSvc.id,
+          })
+          .eq("id", session.user.id);
+      }
+
       console.log("[COUPON STEP 8] Applying promotional banner:", claimObject);
       console.log("[COUPON STEP 3] New user claim created:", claimObject);
       console.log("[COUPON STEP 3] New claim type:", claimObject.type);

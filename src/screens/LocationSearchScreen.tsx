@@ -1182,7 +1182,8 @@ export default function LocationSearchScreen() {
           landmark: landmark.trim(),
           full_address: finalFullAddress,
           latitude: region.latitude,
-          longitude: region.longitude
+          longitude: region.longitude,
+          pincode: currentPincode
         });
 
         // 3. ONLY if it is Home, also update the master profile table

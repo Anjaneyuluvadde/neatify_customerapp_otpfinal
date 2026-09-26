@@ -667,8 +667,12 @@ export type RootStackParamList = {
   };
   Checkout: {
     services: SelectedService[];
-    total: number;
-    bookingDateText: string;
+    total?: number;
+    bookingDateText?: string;
+    manualAddress?: string;
+    pincode?: string;
+    bookingLatitude?: number | null;
+    bookingLongitude?: number | null;
   };
   ResetPassword: {
     access_token?: string;
