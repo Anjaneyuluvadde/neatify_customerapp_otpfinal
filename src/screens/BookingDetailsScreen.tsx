@@ -1397,6 +1397,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { useNotification } from "../hooks/useNotification";
 import { supabase } from "../lib/supabase";
 import { invokeFunction } from "../lib/backendClient";
+import { processPayment } from "../lib/paymentService";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
 type Props = {
@@ -1418,6 +1419,7 @@ export default function BookingDetailsScreen({ route }: Props) {
   const normalizedWorkStatus = String(booking?.work_status || "").trim().toUpperCase();
   const [isEligibleToCancel, setIsEligibleToCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancellationDetails, setCancellationDetails] = useState<{
@@ -2176,7 +2178,73 @@ if (error) {
             <Text style={[styles.bold, { color: theme.text }]}>{t("bookingDetails.total")}</Text>
             <Text style={[styles.bold, { color: theme.text }]}>₹{booking.total_amount}</Text>
           </View>
-          <Text style={{ color: theme.text }}>{t("bookingDetails.status")}: {booking.payment_status}</Text>
+          
+          {(booking.paid_amount !== undefined && booking.paid_amount !== null) && (
+            <View style={[styles.row, { marginTop: 4 }]}>
+              <Text style={{ color: theme.textLight }}>Paid Amount</Text>
+              <Text style={{ color: theme.text, fontWeight: '600' }}>₹{booking.paid_amount}</Text>
+            </View>
+          )}
+
+          {(booking.remaining_amount !== undefined && booking.remaining_amount !== null && Number(booking.remaining_amount) > 0) && (
+            <View style={[styles.row, { marginTop: 4 }]}>
+              <Text style={{ color: theme.textLight }}>Remaining Amount</Text>
+              <Text style={{ color: theme.error || '#ef4444', fontWeight: '700' }}>₹{booking.remaining_amount}</Text>
+            </View>
+          )}
+
+          <Text style={{ color: theme.text, marginTop: 8 }}>{t("bookingDetails.status")}: {booking.payment_status}</Text>
+
+          {(booking.remaining_amount !== undefined && booking.remaining_amount !== null && Number(booking.remaining_amount) > 0 && booking.payment_status !== "completed") && (
+            <TouchableOpacity
+              style={{
+                marginTop: 16,
+                backgroundColor: theme.primary,
+                paddingVertical: 12,
+                borderRadius: 8,
+                alignItems: 'center'
+              }}
+              onPress={async () => {
+                if (processingPayment) return;
+                setProcessingPayment(true);
+                try {
+                  const payment = await processPayment(
+                    Number(booking.remaining_amount),
+                    {
+                      firstName: booking.customer_name?.split(' ')[0] || "",
+                      lastName: booking.customer_name?.split(' ').slice(1).join(' ') || "",
+                      email: booking.email || "",
+                      phone: booking.customer_phone || booking.phone_number || "",
+                      address: booking.full_address || "",
+                      city: "",
+                      region: "",
+                      zip: ""
+                    },
+                    booking.id,
+                    "REMAINING"
+                  );
+                  if (payment.success) {
+                    showToast("Payment Successful!", "success");
+                    onRefresh(); // Refresh booking details
+                  } else {
+                    showAlert({ type: "error", title: "Payment Failed", message: payment.error || "Payment could not be completed." });
+                  }
+                } catch (err: any) {
+                  showAlert({ type: "error", title: "Error", message: err.message || "An error occurred during payment." });
+                } finally {
+                  setProcessingPayment(false);
+                }
+              }}
+            >
+              {processingPayment ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={{ color: '#000', fontWeight: '700', fontSize: 15 }}>
+                  Pay Remaining ₹{booking.remaining_amount}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* STAFF ASSIGNMENT - Only show for non-completed bookings */}

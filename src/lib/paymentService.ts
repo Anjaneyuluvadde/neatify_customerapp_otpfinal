@@ -196,12 +196,15 @@ export type PaymentResult = {
   error?: string;
 };
 
+export type PaymentType = "PARTIAL" | "FULL" | "REMAINING";
+
 /* ================= PROCESS PAYMENT ================= */
 
 export async function processPayment(
   amount: number,
   customer: CustomerDetails,
   bookingId: string,
+  paymentType: PaymentType = "FULL"
 ): Promise<PaymentResult> {
   try {
     /* ================= 1️⃣ CREATE ORDER ================= */
@@ -215,6 +218,7 @@ export async function processPayment(
       body: {
         booking_id: bookingId,
         amount: amount, // INR (Edge Function handles conversion to paise)
+        payment_type: paymentType,
       },
     });
 
@@ -270,6 +274,7 @@ export async function processPayment(
         razorpay_payment_id: payment.razorpay_payment_id,
         razorpay_signature: payment.razorpay_signature,
         booking_id: bookingId,
+        payment_type: paymentType,
       },
     });
 

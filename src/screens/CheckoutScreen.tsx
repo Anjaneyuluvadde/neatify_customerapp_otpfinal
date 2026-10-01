@@ -3334,6 +3334,52 @@ export default function CheckoutScreen({ route }: Props) {
     // 🧹 Clear stale claimed offer so a removed banner coupon isn't reused later
     await clearClaimedOffer();
   };
+
+  /* ================= PARTIAL PAYMENT CONFIG ================= */
+
+  const [partialConfig, setPartialConfig] = useState<{ enabled: boolean, partialAmount: number, remainingAmount: number } | null>(null);
+  const [showPaymentSelectionModal, setShowPaymentSelectionModal] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<"partial" | "full">("full");
+
+  useEffect(() => {
+    const fetchPartialConfig = async () => {
+      const serviceIds = checkoutServices.map((s: SelectedService) => s.id).filter(Boolean);
+      if (serviceIds.length === 0) return;
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, partial_payment_enabled, partial_payment_amount, remaining_payment_amount")
+        .in("id", serviceIds);
+
+      if (data && !error) {
+        let isEnabled = false;
+        let totalPartial = 0;
+        let totalRemaining = 0;
+
+        data.forEach(srv => {
+          const matchedService = checkoutServices.find((s: SelectedService) => s.id === srv.id);
+          const qty = matchedService?.quantity || 1;
+
+          if (srv.partial_payment_enabled) {
+            isEnabled = true;
+          }
+          totalPartial += (Number(srv.partial_payment_amount) || 0) * qty;
+          totalRemaining += (Number(srv.remaining_payment_amount) || 0) * qty;
+        });
+
+        if (isEnabled && totalPartial > 0) {
+          setPartialConfig({
+            enabled: true,
+            partialAmount: totalPartial,
+            remainingAmount: totalRemaining
+          });
+        } else {
+          setPartialConfig(null);
+        }
+      }
+    };
+    fetchPartialConfig();
+  }, [checkoutServices]);
+
   /* ================= TOTALS ================= */
 
   const totalSavings = useMemo(
@@ -3407,7 +3453,9 @@ export default function CheckoutScreen({ route }: Props) {
 
   /* ================= PAYMENT ================= */
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = () => _executePlaceOrder(false);
+
+  const _executePlaceOrder = async (skipModalCheck = false) => {
     if (!userId) {
       setAlertConfig({ title: 'Error', message: 'Missing user session', type: 'error' });
       setShowAlertModal(true);
@@ -3480,6 +3528,11 @@ export default function CheckoutScreen({ route }: Props) {
         type: 'info'
       });
       setShowAlertModal(true);
+      return;
+    }
+
+    if (!skipModalCheck && partialConfig?.enabled) {
+      setShowPaymentSelectionModal(true);
       return;
     }
 
@@ -3571,7 +3624,10 @@ export default function CheckoutScreen({ route }: Props) {
             booking_time: timePart,
             booking_schedule_at: `${datePart} ${timePart} +05:30`,
             total_amount: Number(grandTotal.toFixed(2)),
+            paid_amount: 0,
+            remaining_amount: Number(grandTotal.toFixed(2)),
             payment_status: "pending",
+            payment_plan: paymentChoice === "partial" && partialConfig ? "PARTIAL" : "FULL",
             payment_method: "razorpay",
 
             // ✅🔥 ADD THIS LINE (IMPORTANT)
@@ -3606,7 +3662,6 @@ export default function CheckoutScreen({ route }: Props) {
 
       let payment;
 
-      // ✅ TEST MODE BYPASS
       if (fullName.toUpperCase() === "TEST USER") {
         console.log("🛠️ TEST MODE: Bypassing real payment...");
         payment = {
@@ -3616,7 +3671,7 @@ export default function CheckoutScreen({ route }: Props) {
           signature: "test_sig_123"
         };
       } else {
-        payment = await processPayment(Number(grandTotal.toFixed(2)), {
+        payment = await processPayment(paymentChoice === "partial" && partialConfig ? partialConfig.partialAmount : Number(grandTotal.toFixed(2)), {
           firstName,
           lastName,
           email: invoiceEmail,
@@ -3625,7 +3680,7 @@ export default function CheckoutScreen({ route }: Props) {
           city: "", // Consolidated into fullAddress
           region: "",
           zip: pincode,
-        }, bookingId);
+        }, bookingId, paymentChoice === "partial" ? "PARTIAL" : "FULL");
       }
 
       if (!payment?.success) {
@@ -3648,7 +3703,6 @@ export default function CheckoutScreen({ route }: Props) {
       await supabase
         .from("bookings")
         .update({
-          payment_status: "paid",
           razorpay_payment_id: payment.paymentId,
           razorpay_order_id: payment.orderId,
           razorpay_signature: payment.signature,
@@ -4336,6 +4390,64 @@ export default function CheckoutScreen({ route }: Props) {
         onClose={() => setShowTermsModal(false)}
         prefetchedTerms={policies?.terms_and_conditions}
       />
+
+      {/* Payment Selection Modal */}
+      <Modal
+        visible={showPaymentSelectionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPaymentSelectionModal(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <AnimatedGradientBorder
+            borderRadius={20}
+            borderWidth={2}
+            animationSpeed={3}
+            style={{ width: "100%", maxWidth: 360 }}
+          >
+            <View style={[styles.alertContent, { width: "100%", borderRadius: 20, margin: 0, backgroundColor: theme.background, alignItems: "stretch" }]}>
+              <Text style={[styles.alertTitle, { color: theme.text, marginBottom: 20 }]}>Select Payment</Text>
+
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: paymentChoice === "partial" ? theme.primary : theme.border, backgroundColor: paymentChoice === "partial" ? theme.surfaceVariant : theme.background }}
+                onPress={() => setPaymentChoice("partial")}
+              >
+                <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: paymentChoice === "partial" ? theme.primary : theme.border, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  {paymentChoice === "partial" && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.primary }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: theme.text }}>Partial Payment</Text>
+                  <Text style={{ fontSize: 14, color: theme.textLight, marginTop: 4 }}>Remaining ₹{partialConfig?.remainingAmount}</Text>
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: theme.primary }}>₹{partialConfig?.partialAmount}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: 24, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: paymentChoice === "full" ? theme.primary : theme.border, backgroundColor: paymentChoice === "full" ? theme.surfaceVariant : theme.background }}
+                onPress={() => setPaymentChoice("full")}
+              >
+                <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: paymentChoice === "full" ? theme.primary : theme.border, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  {paymentChoice === "full" && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.primary }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: theme.text }}>Full Payment</Text>
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: theme.primary }}>₹{Number(grandTotal.toFixed(2))}</Text>
+              </TouchableOpacity>
+
+              <Pressable
+                style={[styles.alertButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setShowPaymentSelectionModal(false);
+                  _executePlaceOrder(true);
+                }}
+              >
+                <Text style={styles.alertButtonText}>Continue to Payment</Text>
+              </Pressable>
+            </View>
+          </AnimatedGradientBorder>
+        </View>
+      </Modal>
 
       {/* Success Modal */}
       <Modal

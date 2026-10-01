@@ -2330,9 +2330,9 @@ export default function LoginScreen(props: any) {
           navigation.reset({ index: 0, routes: [{ name: "HomeDrawer" }] });
         } else {
           // NEW USER: No row found with this phone number. Route to Complete Profile.
-          navigation.navigate("CompleteProfile", { 
-            userId: data.user.id, 
-            userPhone: cleanNumber 
+          navigation.navigate("CompleteProfile", {
+            userId: data.user.id,
+            userPhone: cleanNumber
           });
         }
       } else {
